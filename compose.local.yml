@@ -1,0 +1,6 @@
+# Локальный запуск на ПК: docker compose -f docker-compose.yml -f compose.local.yml up --build
+# Сайт: http://localhost:8080 (заказы работают только внутри Telegram).
+services:
+  app:
+    ports:
+      - "127.0.0.1:8080:8080"

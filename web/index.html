@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MORELUFS</title>
+    <meta name="theme-color" content="#000000">
+    <link rel="preload" href="assets/fonts/source-code-pro-400.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="assets/img/m.webp" as="image">
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="js/app.js" defer></script>
+</head>
+<body>
+    <header id="topbar" class="topbar">
+        <button type="button" class="logo" onclick="navigate('landing')" aria-label="MORELUFS — на главную"><img src="assets/img/m.webp" alt="" width="326" height="254"></button>
+        <!-- в карточке товара и в Order вместо «M» — закрыть и вернуться туда, откуда открыли -->
+        <button type="button" class="topbar-close" onclick="goBack()" aria-label="Закрыть">&#10005;</button>
+        <!-- кнопка раздела, в котором находишься, скрыта (см. body[data-section] в CSS) -->
+        <nav class="nav" aria-label="Разделы">
+            <button type="button" class="nav-btn" data-section="cloth" onclick="navigate('catalog')">Cloth</button>
+            <button type="button" class="nav-btn" data-section="cart" onclick="navigate('cart')">Cart<span class="cart-count"></span></button>
+            <button type="button" class="nav-btn" data-section="main" onclick="navigate('landing')">Main</button>
+            <button type="button" class="nav-btn" data-section="about" onclick="navigate('brand')">About</button>
+        </nav>
+    </header>
+
+    <div id="landing-screen" class="screen active">
+        <picture class="landing-photo">
+            <source media="(max-aspect-ratio: 4/5)" srcset="assets/img/landing-bg-mobile.webp">
+            <img src="assets/img/landing-bg.webp" alt="Двое в худи с ангелом на спине на ночной набережной Казани" fetchpriority="high">
+        </picture>
+        <div class="landing-center">
+            <h1 class="landing-m"><img src="assets/img/m.webp" alt="MORELUFS" width="326" height="254"></h1>
+            <nav class="landing-nav" aria-label="Разделы">
+                <button type="button" class="landing-link" onclick="navigate('catalog')">Cloth</button>
+                <button type="button" class="landing-link" onclick="navigate('brand')">About</button>
+                <button type="button" class="landing-link" onclick="navigate('cart')">Cart<span class="cart-count"></span></button>
+            </nav>
+        </div>
+    </div>
+
+    <div id="catalog-screen" class="screen">
+        <div id="products-grid" class="products-grid"></div>
+        <!-- широкий экран: вместо сетки — коллекции в шахматном порядке (app.js, COLLECTIONS) -->
+        <div id="collections" class="collections"></div>
+
+        <!-- FAQ и подвал внизу каталога; кнопки пока без действий -->
+        <section class="faq" aria-labelledby="faq-title">
+            <h2 id="faq-title" class="faq-title">FAQ</h2>
+            <ul class="faq-list">
+                <li><button type="button" class="faq-q">Как сделать заказ?</button></li>
+                <li><button type="button" class="faq-q">Есть ли доставка в мой город?</button></li>
+                <li><button type="button" class="faq-q">Обмен и возврат</button></li>
+                <li><button type="button" class="faq-q">Как изменить заказ?</button></li>
+                <li><button type="button" class="faq-q">У меня другой вопрос. Что делать?</button></li>
+            </ul>
+        </section>
+
+        <footer class="catalog-footer">
+            <button type="button" class="catalog-footer-link">Реквизиты</button>
+            <button type="button" class="catalog-footer-link">Политика конфиденциальности</button>
+            <button type="button" class="catalog-footer-link">Договор оферты</button>
+            <button type="button" class="catalog-footer-link">Автор сайта</button>
+        </footer>
+    </div>
+
+    <div id="brand-screen" class="screen">
+        <div class="brand-screen-content">
+            <div class="brand-media">
+                <div class="brand-main-image">
+                    <img src="assets/img/about.webp" alt="Двое участников MORELUFS в лесу">
+                </div>
+                <!-- на широком экране вместо фото; src подставляет app.js, чтобы телефон не качал видео -->
+                <video class="brand-video" muted loop playsinline preload="none" data-src="assets/video/main.mp4" aria-hidden="true"></video>
+            </div>
+            <div class="brand-side">
+                <div class="brand-text-card">
+                    <!-- заголовок и цитата — только в узкой версии; на широкой их скрывает CSS -->
+                    <h2 class="brand-narrow-only">О бренде MORELUFS</h2>
+                    <blockquote class="brand-quote brand-narrow-only">LUFS - условная единица измерения громкости аудиосигнала.</blockquote>
+                    <p>Когда глаза хотят видеть больше, когда ноги хотят идти дальше, когда сердце не может стучаться без одержимости своим делом, мы не молчим - мы звучим.</p>
+                    <p>Morelufs - это личность, отражающая историю двух душ, одержимых,  поглощенных, но не усопших в своей мечте. Пропитанные самобытностью своего маленького северного города, они рискнули и пересекли видимый горизонт, для того, чтобы их внутренний звук обрёл эхо.</p>
+                </div>
+                <div class="brand-links-container">
+                    <a href="https://instagram.com/morelufs" target="_blank" rel="noopener" class="brand-social-link" aria-label="Instagram">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.051.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+                        </svg>
+                        <span>Instagram</span>
+                    </a>
+                    <a href="https://www.tiktok.com/@morelufs?_r=1&_t=ZP-976V5eVwLOR" target="_blank" rel="noopener" class="brand-social-link" aria-label="TikTok">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.02 1.59 4.14 1.02 1.11 2.44 1.8 3.97 1.94v3.94c-1.3-.08-2.6-.58-3.63-1.38-.68-.51-1.24-1.17-1.64-1.92v6.43c-.07 2.05-.83 4.07-2.19 5.58-1.5 1.74-3.79 2.76-6.11 2.69-2.34-.02-4.6-1.12-5.96-3.03-1.46-1.97-1.93-4.57-1.27-6.97.58-2.26 2.12-4.22 4.22-5.18 1.45-.69 3.08-.94 4.67-.67v4.03c-.88-.23-1.84-.13-2.64.36-.75.43-1.32 1.17-1.54 2-.25.86-.11 1.81.37 2.56.49.8 1.34 1.35 2.27 1.44.97.11 1.97-.22 2.64-.94.63-.66.93-1.56.93-2.47V0l.02.02z"/>
+                        </svg>
+                        <span>TikTok</span>
+                    </a>
+                    <a href="https://t.me/morelufs" target="_blank" rel="noopener" class="brand-social-link" aria-label="Telegram">
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                            <path d="M21.94 4.3 18.72 19.44c-.24 1.07-.88 1.33-1.78.83l-4.9-3.61-2.37 2.28c-.26.26-.48.48-.99.48l.35-5 9.1-8.22c.4-.35-.08-.55-.61-.2L6.27 13.1l-4.84-1.52c-1.05-.33-1.07-1.05.22-1.56L20.58 2.73c.88-.32 1.65.2 1.36 1.57z"/>
+                        </svg>
+                        <span>Telegram</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="product-screen" class="screen">
+        <div id="main-carousel" class="carousel-container">
+            <div id="carousel-track" class="carousel-track"></div>
+            <button class="carousel-btn prev" onclick="moveCarousel(-1, event)" aria-label="Предыдущее фото">&#8592;</button>
+            <button class="carousel-btn next" onclick="moveCarousel(1, event)" aria-label="Следующее фото">&#8594;</button>
+            <div id="carousel-dots" class="carousel-dots"></div>
+        </div>
+
+        <div class="product-info-box">
+            <h2 id="p-title">Название товара</h2>
+            <div id="p-status-container"></div>
+            <div id="p-price-container" class="product-screen-price-container"></div>
+            <!-- выбор цвета — только на широком экране -->
+            <div id="color-section" class="size-section color-section" hidden>
+                <div class="field-label">Цвет</div>
+                <div id="color-selector" class="size-selector"></div>
+            </div>
+            <div class="size-section">
+                <div class="field-label">Размер</div>
+                <div id="size-selector" class="size-selector"></div>
+            </div>
+
+            <div class="action-buttons-container" id="product-action-wrapper"></div>
+
+            <div class="description-section">
+                <div class="field-label">Описание</div>
+                <p id="p-desc">Описание товара...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="lightbox-modal" class="lightbox-modal">
+        <button type="button" class="lightbox-close" onclick="closeLightbox()" aria-label="Закрыть">&#10005;</button>
+        <button class="lightbox-nav-btn prev" onclick="moveLightbox(-1, event)" aria-label="Предыдущее фото">&#8592;</button>
+        <button class="lightbox-nav-btn next" onclick="moveLightbox(1, event)" aria-label="Следующее фото">&#8594;</button>
+        <div id="lightbox-carousel" class="lightbox-container">
+            <div id="lightbox-track" class="lightbox-track"></div>
+        </div>
+        <div id="lightbox-counter" class="lightbox-counter">1 / 1</div>
+    </div>
+
+    <div id="cart-screen" class="screen">
+        <div id="cart-items-container"></div>
+        <div class="cart-summary">
+            <div class="summary-line">
+                <span class="summary-label">Total</span>
+                <span id="cart-total-price">0 руб</span>
+            </div>
+            <div class="summary-actions">
+                <button type="button" class="order-btn" onclick="navigate('orders')">Order</button>
+                <button id="checkout-main-btn" class="checkout-btn disabled" disabled onclick="navigate('checkout')">Перейти к оформлению</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="checkout-screen" class="screen">
+        <div class="checkout-container">
+            <h1 class="main-title">Оформление</h1>
+            <div class="checkout-section-title">Контакты</div>
+            <div class="form-group">
+                <input type="text" id="checkout-name" class="form-input" placeholder="Имя" autocomplete="given-name" maxlength="30">
+            </div>
+            <div class="form-group">
+                <input type="text" id="checkout-surname" class="form-input" placeholder="Фамилия" autocomplete="family-name" maxlength="40">
+            </div>
+            <div class="form-group">
+                <input type="text" id="checkout-patronymic" class="form-input" placeholder="Отчество" autocomplete="additional-name" maxlength="30">
+            </div>
+            <div class="form-group phone-input-wrapper">
+                <span class="phone-prefix">+7</span>
+                <input type="tel" id="checkout-phone" class="form-input phone-input-padding" placeholder="(900) 000-00-00" inputmode="numeric" autocomplete="tel">
+            </div>
+            <div class="form-group">
+                <input type="text" id="checkout-telegram" class="form-input" placeholder="Телеграм для связи (например, @username)" maxlength="33">
+            </div>
+            <div class="form-group">
+                <input type="email" id="checkout-email" class="form-input" placeholder="Email" autocomplete="email" maxlength="100">
+            </div>
+            <div class="form-group-info">Проверьте корректность заполненных данных по паспорту, по ним будет оформляться доставка.</div>
+            <div class="checkout-section-title">Примечание к заказу</div>
+            <div class="form-group">
+                <textarea id="checkout-comment" class="form-textarea" placeholder="Комментарии к заказу" maxlength="500"></textarea>
+                <div class="form-group-info">Если есть какие-то пожелания</div>
+            </div>
+
+            <div class="checkout-section-title">Доставка</div>
+            <div class="radio-stack">
+                <label class="radio-label">
+                    <input type="radio" name="delivery-method" value="cdek" class="radio-input" checked>
+                    <div class="custom-radio"></div>
+                    <span>СДЭК</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="delivery-method" value="pochta" class="radio-input">
+                    <div class="custom-radio"></div>
+                    <span>Почта России</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <div class="input-title">Адрес пункта выдачи</div>
+                <input type="text" id="checkout-address" class="form-input" placeholder="Город, улица, дом" maxlength="150">
+            </div>
+
+            <div class="checkout-section-title">Способ оплаты</div>
+            <div class="radio-stack">
+                <label class="radio-label">
+                    <input type="radio" name="payment-method" value="qr" class="radio-input" checked>
+                    <div class="custom-radio"></div>
+                    <span>QR-код</span>
+                </label>
+                <label class="radio-label">
+                    <input type="radio" name="payment-method" value="manager" class="radio-input">
+                    <div class="custom-radio"></div>
+                    <span>Через менеджера</span>
+                </label>
+            </div>
+
+            <button id="submit-order-btn" class="submit-order-btn" onclick="processOrder()">Подтвердить заказ</button>
+        </div>
+    </div>
+
+    <div id="qr-screen" class="screen">
+        <div class="screen-head">
+            <h1 class="main-title">Оплата заказа</h1>
+        </div>
+        <div class="qr-container">
+            <p class="qr-instructions">Отсканируйте QR-код в приложении вашего банка для совершения платежа</p>
+            <div class="qr-card">
+                <div class="qr-image-wrapper">
+                    <img id="payment-qr-img" alt="QR-код для оплаты">
+                </div>
+                <div class="qr-amount-title">Сумма к оплате</div>
+                <div id="qr-total-amount" class="qr-amount-value">0 руб</div>
+            </div>
+            <button class="submit-order-btn" onclick="confirmQRPayment()">Я оплатил</button>
+        </div>
+    </div>
+    <div id="orders-screen" class="screen">
+        <div class="screen-head">
+            <h1 class="main-title orders-title">Order</h1>
+        </div>
+        <div id="orders-container"></div>
+    </div>
+    <div id="custom-alert-modal" class="lightbox-modal custom-alert-overlay">
+        <div class="custom-alert-container">
+            <p id="custom-alert-text" class="custom-alert-message"></p>
+            <button id="custom-alert-btn" class="main-action-btn custom-alert-submit">OK</button>
+        </div>
+    </div>
+</body>
+</html>

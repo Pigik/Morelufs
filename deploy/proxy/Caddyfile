@@ -1,0 +1,16 @@
+# Новый сайт = новый блок. Применить: docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile
+
+morelufs.ru {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+	reverse_proxy morelufs:8080
+}
+
+www.morelufs.ru {
+	redir https://morelufs.ru{uri} permanent
+}

@@ -1,0 +1,7 @@
+# В образ попадает только нужное для запуска (белый список).
+*
+!app/
+!web/
+!requirements.txt
+**/__pycache__
+deploy.bat

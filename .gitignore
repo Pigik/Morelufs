@@ -1,0 +1,14 @@
+.env
+*.db
+*.db-*
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+.DS_Store
+deploy.bat

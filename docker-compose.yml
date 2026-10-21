@@ -1,0 +1,26 @@
+# Сервер: /root/morelufs. Образ собирается на ПК (deploy.bat), здесь только pull.
+# Наружу порты не публикуются: HTTPS принимает Caddy из deploy/proxy и ходит сюда по сети proxy.
+name: morelufs
+
+services:
+  app:
+    image: pigik/morelufs:latest
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - data:/data
+    networks:
+      proxy:
+        aliases: [morelufs]
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: "3" }
+
+volumes:
+  data:
+
+networks:
+  proxy:
+    external: true
