@@ -82,6 +82,10 @@ const SECTION = {
 };
 let customAlertCallback = null;
 let submitting = false;
+// Кто открыл сайт (GET api/me). В мини-аппе покупатель известен сразу, на сайте — после входа через Telegram.
+const IN_TG = Boolean(tg?.initData);
+let account = { loginEnabled: false, user: null };
+let accountReady = Promise.resolve();
 
 function saveCart() {
     store.set(CART_KEY, cart);
@@ -154,6 +158,7 @@ function renderScreenInternal(screenId) {
     if (screenId === 'cart') renderCart();
     if (screenId === 'product' && currentProduct) updateButtonInterface();
     if (screenId === 'orders') fetchAndRenderOrders();
+    if (screenId === 'checkout') renderCheckoutGate();
     updateBackButton();
 }
 
@@ -993,6 +998,12 @@ async function processOrder() {
             body: JSON.stringify({ ...form, cart: cart.map(({ id, size, quantity }) => ({ id, size, quantity })) }),
         });
         const data = await response.json().catch(() => ({}));
+        if (response.status === 401 && !IN_TG) {
+            account.user = null; // вход истёк или выполнен выход в другой вкладке
+            renderCheckoutGate();
+            showCustomAlert('Войдите через Telegram ещё раз — данные формы сохранены.');
+            return;
+        }
         if (!response.ok || !data.ok) throw new Error(data.description || `Системный сбой сервера. Код: ${response.status}`);
 
         hapticResult('success');
@@ -1022,6 +1033,127 @@ function confirmQRPayment() {
     hapticResult('success');
     resetTo('catalog');
     showCustomAlert('Спасибо за покупку! Статус заказа обновится в ближайшее время. Отследить его можно в разделе Cart → Order.');
+}
+
+// --- вход на сайт через Telegram ---
+// В мини-аппе ничего этого не видно: там покупателя подтверждает сам Telegram (initData).
+
+const TG_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.94 4.3 18.72 19.44c-.24 1.07-.88 1.33-1.78.83l-4.9-3.61-2.37 2.28c-.26.26-.48.48-.99.48l.35-5 9.1-8.22c.4-.35-.08-.55-.61-.2L6.27 13.1l-4.84-1.52c-1.05-.33-1.07-1.05.22-1.56L20.58 2.73c.88-.32 1.65.2 1.36 1.57z"/></svg>';
+
+const LOGIN_RESULT = {
+    cancelled: 'Вход отменён. Когда будете готовы, нажмите «Войти через Telegram» ещё раз.',
+    expired: 'Вход не завершён: ссылка устарела или открылась в другом браузере. Нажмите «Войти через Telegram» ещё раз и подтвердите вход в этом же браузере.',
+    failed: 'Telegram не подтвердил вход. Попробуйте ещё раз через минуту.',
+    disabled: 'Вход на сайте пока недоступен. Заказы можно оформить в приложении магазина в Telegram.',
+};
+
+async function loadAccount() {
+    try {
+        const response = await fetch('api/me', { headers: { 'X-TG-Init-Data': tg?.initData || '' } });
+        const data = await response.json();
+        account = { loginEnabled: Boolean(data.login_enabled), user: data.user || null };
+    } catch {
+        account = { loginEnabled: false, user: null };
+    }
+    renderAccountSlot();
+    prefillFromAccount();
+    if (historyStack[historyStack.length - 1] === 'checkout') renderCheckoutGate();
+}
+
+// Почему стоит войти — три вещи, которые покупатель получает. Кнопка ведёт на сервер (auth/login),
+// он отправляет в Telegram; после подтверждения Telegram вернёт обратно на экран next.
+function loginGateHTML(next) {
+    if (!account.loginEnabled) {
+        return `<section class="login-gate">
+            <p class="login-lead">Заказы оформляются через Telegram-приложение магазина — там же видна история заказов.</p>
+            <a class="login-btn" href="https://t.me/morelufs" target="_blank" rel="noopener">${TG_ICON}<span>Открыть Telegram</span></a>
+        </section>`;
+    }
+    const lead = next === 'checkout'
+        ? 'Чтобы оформить заказ, войдите через Telegram. Корзина и заполненные поля сохранятся.'
+        : 'Ваши заказы привязаны к Telegram. Войдите, чтобы увидеть их и следить за статусом.';
+    return `<section class="login-gate">
+        <p class="login-lead">${lead}</p>
+        <ul class="login-why">
+            <li><b>Одна история заказов</b><span>Те же заказы видны здесь, в приложении магазина в Telegram и у бота.</span></li>
+            <li><b>Статус и трек-номер — в Telegram</b><span>Бот напишет, когда заказ подтвердят и отправят.</span></li>
+            <li><b>Телефон без ручного ввода</b><span>Номер, подтверждённый Telegram, сам подставится в заказ.</span></li>
+        </ul>
+        <a class="login-btn" href="auth/login?next=${next}" onclick="startLogin(this)">${TG_ICON}<span>Войти через Telegram</span></a>
+        <p class="login-note">Telegram попросит подтвердить вход и спросит, можно ли передать магазину ваше имя, ник и номер телефона. Пароль и переписки остаются в Telegram.</p>
+    </section>`;
+}
+
+function startLogin(link) {
+    link.classList.add('is-busy');
+    link.querySelector('span').innerText = 'Открываем Telegram...';
+    haptic('light');
+}
+
+// Вернулись кнопкой «назад» со страницы Telegram — кнопка снова «Войти», а не «Открываем...»
+window.addEventListener('pageshow', (e) => {
+    if (!e.persisted) return;
+    document.querySelectorAll('.login-btn.is-busy').forEach((link) => {
+        link.classList.remove('is-busy');
+        link.querySelector('span').innerText = 'Войти через Telegram';
+    });
+});
+
+// Оформление на сайте: без входа — объяснение и кнопка, после входа — обычная форма.
+function renderCheckoutGate() {
+    const needsLogin = !IN_TG && !account.user;
+    $('checkout-login').innerHTML = needsLogin ? loginGateHTML('checkout') : '';
+    $('checkout-form').hidden = needsLogin;
+}
+
+function renderAccountSlot() {
+    const slot = $('account-slot');
+    const u = account.user;
+    if (IN_TG || !u) {
+        slot.innerHTML = '';
+        return;
+    }
+    const who = u.username ? `@${u.username}` : (u.full_name || 'Telegram');
+    slot.innerHTML = `<span class="account-name">${esc(who)}</span><button type="button" class="text-link" onclick="logout()">Выйти</button>`;
+}
+
+async function logout() {
+    try {
+        await fetch('api/logout', { method: 'POST' });
+    } catch { /* сессия всё равно истечёт; на экране — как после выхода */ }
+    account.user = null;
+    renderAccountSlot();
+    renderScreenInternal(historyStack[historyStack.length - 1]);
+}
+
+// Телефон, подтверждённый Telegram, и ник — в пустые поля формы (то, что ввёл покупатель, не трогаем).
+function prefillFromAccount() {
+    const u = account.user;
+    const phone = $('checkout-phone');
+    if (u?.phone && !phone.value) {
+        phone.value = u.phone;
+        store.set(CHECKOUT_KEY, readCheckout());
+    }
+    const syncHint = () => { $('phone-verified').hidden = !u?.phone || phone.value !== u.phone; };
+    syncHint();
+    phone.oninput = syncHint;
+    const telegram = $('checkout-telegram');
+    if (u?.username && !telegram.value) telegram.value = `@${u.username}`;
+}
+
+// Возврат из Telegram: /?login=ok&next=checkout. Адрес чистим, чтобы «обновить» не повторяло сообщение.
+function handleLoginReturn() {
+    const params = new URLSearchParams(location.search);
+    const result = params.get('login');
+    if (!result) return;
+    history.replaceState(null, '', location.pathname);
+    const next = ['orders', 'checkout'].includes(params.get('next')) ? params.get('next') : null;
+    if (next) {
+        historyStack = ['landing', 'cart', next]; // «назад» — в корзину, где начинали
+        renderScreenInternal(next);
+    }
+    if (result === 'ok') hapticResult('success');
+    else showCustomAlert(LOGIN_RESULT[result] || LOGIN_RESULT.failed);
 }
 
 // --- мои заказы ---
@@ -1055,8 +1187,20 @@ ${items}
 async function fetchAndRenderOrders() {
     const container = $('orders-container');
     container.innerHTML = '<div class="loading-msg">Загрузка данных...</div>';
+    await accountReady;
+    renderAccountSlot();
+    if (!IN_TG && !account.user) {
+        container.innerHTML = loginGateHTML('orders');
+        return;
+    }
     try {
         const response = await fetch('api/orders', { headers: { 'X-TG-Init-Data': tg?.initData || '' } });
+        if (response.status === 401 && !IN_TG) {
+            account.user = null;
+            renderAccountSlot();
+            container.innerHTML = loginGateHTML('orders');
+            return;
+        }
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.description || `HTTP ${response.status}`);
         container.innerHTML = data.orders.length ? data.orders.map(orderHTML).join('') : emptyMessage('У вас пока нет заказов');
@@ -1102,7 +1246,9 @@ function init() {
     });
 
     updateCartBadge();
+    accountReady = loadAccount();
     renderScreenInternal('landing');
+    handleLoginReturn();
     loadCatalog();
 }
 

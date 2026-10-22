@@ -13,6 +13,8 @@ RATE_LIMIT_SECONDS = 10  # один заказ в 10 секунд от поль�
 INIT_DATA_TTL = 24 * 3600  # сколько живёт подпись Telegram initData
 MAX_CART_ITEMS = 30  # позиций в корзине
 MAX_ITEM_QTY = 10  # штук одной позиции
+SESSION_DAYS = 30  # сколько живёт вход на сайте
+LOGIN_TTL = 600  # секунд на то, чтобы пройти вход в Telegram и вернуться
 
 STATUS_NEW = "Ожидает подтверждения"
 STATUS_PRESETS = ("Подтверждён", "Оплачен", "Отправлен", "Доставлен", "Отменён")
@@ -29,6 +31,17 @@ class Settings:
     web_dir: Path
     host: str
     port: int
+    # вход на сайт через Telegram; пустые — на сайте вход выключен, мини-апп работает как раньше
+    login_client_id: str = ""
+    login_client_secret: str = ""
+
+    @property
+    def login_enabled(self) -> bool:
+        return bool(self.login_client_id and self.login_client_secret)
+
+    @property
+    def login_redirect_uri(self) -> str:
+        return self.webapp_url.rstrip("/") + "/auth/callback"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -44,4 +57,6 @@ class Settings:
             web_dir=Path(os.getenv("WEB_DIR", ROOT / "web")),
             host=os.getenv("HTTP_HOST", "0.0.0.0"),
             port=int(os.getenv("HTTP_PORT", "8080")),
+            login_client_id=os.getenv("TG_LOGIN_CLIENT_ID", "").strip(),
+            login_client_secret=os.getenv("TG_LOGIN_CLIENT_SECRET", "").strip(),
         )

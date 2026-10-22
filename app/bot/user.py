@@ -1,4 +1,4 @@
-"""Команды покупателя: /start, /my_orders."""
+"""Команды покупателя: /start, /my_orders, /logout."""
 
 from aiogram import Bot, Router
 from aiogram.filters import Command, CommandStart
@@ -29,3 +29,11 @@ async def my_orders(message: Message, db: Database) -> None:
         return
     for part in texts.chunks(["<b>📦 Ваши заказы</b>", *map(texts.order_for_user, orders)]):
         await message.answer(part)
+
+
+@router.message(Command("logout"))
+async def logout(message: Message, db: Database) -> None:
+    """Выход с сайта на всех устройствах — если вход был с чужого компьютера или телефон потерян."""
+    count = await db.delete_user_sessions(message.from_user.id)
+    await message.answer("Готово: вы вышли с сайта на всех устройствах." if count
+                         else "Вы не входили на сайт, выходить неоткуда.")

@@ -48,7 +48,24 @@ CREATE TABLE IF NOT EXISTS order_items (
     price       INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS order_items_order_id ON order_items(order_id);
+-- вход на сайт через Telegram: незавершённые попытки (state → PKCE) и сессии браузеров
+CREATE TABLE IF NOT EXISTS login_attempts (
+    state       TEXT PRIMARY KEY,
+    verifier    TEXT NOT NULL,
+    nonce       TEXT NOT NULL,
+    next        TEXT NOT NULL DEFAULT '',          -- экран сайта, куда вернуть после входа
+    created_at  INTEGER NOT NULL                   -- unix time
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash  TEXT PRIMARY KEY,                  -- sha256 от cookie: утечка базы не даёт войти
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    expires_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sessions_user_id ON sessions(user_id);
 """
+
+# Новые колонки старых таблиц: CREATE TABLE IF NOT EXISTS их на рабочей базе не добавит.
+COLUMNS = {"users": {"phone": "TEXT"}}  # phone — номер, подтверждённый Telegram при входе на сайт
 
 ORDER_FIELDS = ("surname", "name", "patronymic", "phone", "telegram", "email",
                 "delivery", "address", "payment", "qr_index", "comment", "total")
@@ -103,6 +120,11 @@ class Database:
         await conn.execute("PRAGMA journal_mode = WAL")
         await conn.execute("PRAGMA foreign_keys = ON")
         await conn.executescript(SCHEMA)
+        for table, columns in COLUMNS.items():
+            existing = {r["name"] for r in await conn.execute_fetchall(f"PRAGMA table_info({table})")}
+            for name, decl in columns.items():
+                if name not in existing:
+                    await conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
         await conn.commit()
         return cls(conn)
 
@@ -133,6 +155,57 @@ class Database:
     async def active_user_ids(self) -> list[int]:
         rows = await self.conn.execute_fetchall("SELECT id FROM users WHERE is_blocked = 0")
         return [r["id"] for r in rows]
+
+    async def get_user(self, user_id: int) -> dict | None:
+        rows = await self.conn.execute_fetchall(
+            "SELECT id, username, full_name, phone FROM users WHERE id = ?", (user_id,))
+        return dict(rows[0]) if rows else None
+
+    async def set_phone(self, user_id: int, phone: str) -> None:
+        await self.conn.execute("UPDATE users SET phone = ? WHERE id = ?", (phone, user_id))
+        await self.conn.commit()
+
+    # --- вход на сайт ---
+
+    async def add_login_attempt(self, state: str, verifier: str, nonce: str, next_screen: str, now: int,
+                                ttl: int) -> None:
+        await self.conn.execute("DELETE FROM login_attempts WHERE created_at < ?", (now - ttl,))
+        await self.conn.execute(
+            "INSERT INTO login_attempts (state, verifier, nonce, next, created_at) VALUES (?, ?, ?, ?, ?)",
+            (state, verifier, nonce, next_screen, now),
+        )
+        await self.conn.commit()
+
+    async def pop_login_attempt(self, state: str, now: int, ttl: int) -> dict | None:
+        """Одноразово забирает попытку входа; просроченную не возвращает."""
+        rows = await self.conn.execute_fetchall("SELECT * FROM login_attempts WHERE state = ?", (state,))
+        await self.conn.execute("DELETE FROM login_attempts WHERE state = ?", (state,))
+        await self.conn.commit()
+        return dict(rows[0]) if rows and rows[0]["created_at"] >= now - ttl else None
+
+    async def create_session(self, token_hash: str, user_id: int, expires_at: int, now: int) -> None:
+        await self.conn.execute("DELETE FROM sessions WHERE expires_at < ?", (now,))
+        await self.conn.execute(
+            "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
+            (token_hash, user_id, expires_at),
+        )
+        await self.conn.commit()
+
+    async def session_user(self, token_hash: str, now: int) -> dict | None:
+        rows = await self.conn.execute_fetchall(
+            "SELECT u.id, u.username, u.full_name, u.phone FROM sessions s JOIN users u ON u.id = s.user_id "
+            "WHERE s.token_hash = ? AND s.expires_at >= ?", (token_hash, now),
+        )
+        return dict(rows[0]) if rows else None
+
+    async def delete_session(self, token_hash: str) -> None:
+        await self.conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+        await self.conn.commit()
+
+    async def delete_user_sessions(self, user_id: int) -> int:
+        cur = await self.conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        await self.conn.commit()
+        return cur.rowcount
 
     # --- заказы ---
 

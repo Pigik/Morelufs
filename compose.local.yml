@@ -1,5 +1,6 @@
 # Локальный запуск на ПК: docker compose -f docker-compose.yml -f compose.local.yml up --build
-# Сайт: http://localhost:8080 (заказы работают только внутри Telegram).
+# Сайт: http://localhost:8080. Вход через Telegram локально работает, только если в .env
+# WEBAPP_URL=http://localhost:8080/ и этот адрес добавлен в Allowed URLs у @BotFather.
 services:
   app:
     ports:

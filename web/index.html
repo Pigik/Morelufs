@@ -164,6 +164,9 @@
     <div id="checkout-screen" class="screen">
         <div class="checkout-container">
             <h1 class="main-title">Оформление</h1>
+            <!-- на сайте без входа вместо формы — вход через Telegram (app.js, renderLoginGate) -->
+            <div id="checkout-login"></div>
+            <div id="checkout-form">
             <div class="checkout-section-title">Контакты</div>
             <div class="form-group">
                 <input type="text" id="checkout-name" class="form-input" placeholder="Имя" autocomplete="given-name" maxlength="30">
@@ -178,6 +181,7 @@
                 <span class="phone-prefix">+7</span>
                 <input type="tel" id="checkout-phone" class="form-input phone-input-padding" placeholder="(900) 000-00-00" inputmode="numeric" autocomplete="tel">
             </div>
+            <div id="phone-verified" class="form-group-info phone-verified" hidden>Номер подтверждён в Telegram. Можно указать другой.</div>
             <div class="form-group">
                 <input type="text" id="checkout-telegram" class="form-input" placeholder="Телеграм для связи (например, @username)" maxlength="33">
             </div>
@@ -225,6 +229,7 @@
             </div>
 
             <button id="submit-order-btn" class="submit-order-btn" onclick="processOrder()">Подтвердить заказ</button>
+            </div>
         </div>
     </div>
 
@@ -247,6 +252,8 @@
     <div id="orders-screen" class="screen">
         <div class="screen-head">
             <h1 class="main-title orders-title">Order</h1>
+            <!-- на сайте после входа: ник и «Выйти» -->
+            <div id="account-slot" class="account-slot"></div>
         </div>
         <div id="orders-container"></div>
     </div>

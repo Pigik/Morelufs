@@ -1,4 +1,4 @@
-# Прямые зависимости: aiogram, aiohttp, aiosqlite. Остальное — их зависимости, зафиксированы для воспроизводимой сборки.
+# Прямые зависимости: aiogram, aiohttp, aiosqlite, PyJWT + cryptography (вход через Telegram). Остальное — их зависимости, зафиксированы для воспроизводимой сборки.
 aiofiles==25.1.0
 aiogram==3.29.0
 aiohappyeyeballs==2.6.2
@@ -8,13 +8,17 @@ aiosqlite==0.22.1
 annotated-types==0.7.0
 attrs==26.1.0
 certifi==2026.5.20
+cffi==2.1.1
+cryptography==50.0.1
 frozenlist==1.8.0
 idna==3.18
 magic-filter==1.0.12
 multidict==6.7.1
 propcache==0.5.2
+pycparser==3.0
 pydantic==2.13.4
 pydantic_core==2.46.4
+PyJWT==2.15.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 yarl==1.24.2

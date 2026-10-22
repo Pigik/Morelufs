@@ -1302,6 +1302,16 @@ button.cart-item-link {
         background: transparent;
     }
 
+    /* кнопки — по центру правой колонки; ширина как у её трека в grid ниже */
+    body[data-screen="brand"] .nav {
+        position: absolute;
+        top: 36px;
+        right: 0;
+        width: max(340px, calc(100% / 3));
+        justify-content: center;
+        white-space: nowrap;
+    }
+
     #brand-screen,
     body.in-tg[data-screen="brand"] #brand-screen {
         padding: 0;
@@ -1449,6 +1459,106 @@ button.cart-item-link {
 }
 
 .order-details b { color: var(--text); font-weight: 600; }
+
+/* --- вход на сайт через Telegram: объяснение «зачем» + белая кнопка, как остальные действия --- */
+
+.login-gate {
+    max-width: 520px;
+    padding: 8px 0 48px;
+    animation: fade-in 0.3s ease-out both;
+}
+
+#checkout-login .login-gate { padding-top: 24px; }
+
+.login-lead {
+    font-size: 15px;
+    line-height: 1.6;
+    margin-bottom: 28px;
+}
+
+/* строки через тонкие линии — тот же ритм, что у FAQ */
+.login-why {
+    list-style: none;
+    border-top: 1px solid var(--line);
+    margin-bottom: 32px;
+}
+
+.login-why li {
+    display: grid;
+    gap: 4px;
+    padding: 16px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.login-why b { font-weight: 600; }
+
+.login-why span {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--soft);
+}
+
+.login-btn {
+    width: 100%;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    transition: opacity 0.15s ease;
+}
+
+.login-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    flex-shrink: 0;
+}
+
+.login-btn:active, .login-btn.is-busy { opacity: 0.6; }
+.login-btn.is-busy { pointer-events: none; }
+
+@media (hover: hover) {
+    .login-btn:hover { opacity: 0.85; }
+}
+
+.login-note {
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--hint);
+    margin-top: 14px;
+}
+
+/* ник и «Выйти» справа от заголовка Order */
+.account-slot {
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+    min-width: 0;
+    font-size: 13px;
+    color: var(--hint);
+}
+
+.account-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.account-slot .text-link { flex-shrink: 0; }
+
+@media (hover: hover) {
+    .text-link:hover { color: var(--text); }
+}
+
+.phone-verified { margin: -4px 0 12px; }
 
 /* --- лайтбокс и уведомление --- */
 

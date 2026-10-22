@@ -41,13 +41,33 @@ class FakeBot:
 
 @pytest.fixture
 def settings(tmp_path) -> Settings:
-    return Settings(TOKEN, ADMINS, "https://example.test/", tmp_path / "test.db", ROOT / "web", "127.0.0.1", 0)
+    # http, а не https: иначе cookie входа будет Secure и тестовый клиент (http) её не отправит
+    return Settings(TOKEN, ADMINS, "http://example.test/", tmp_path / "test.db", ROOT / "web", "127.0.0.1", 0)
+
+
+class FakeLogin:
+    """Подмена TelegramLogin: вместо oauth.telegram.org отдаёт заранее заданные claims."""
+
+    def __init__(self, claims: dict | None = None):
+        self.claims = claims or {"id": 1, "name": "Иван", "preferred_username": "ivan",
+                                 "phone_number": "79001234567", "phone_number_verified": True}
+        self.exchanged: list[tuple[str, str, str]] = []
+
+    def authorize_url(self, state: str, challenge: str, nonce: str) -> str:
+        return f"https://oauth.telegram.org/auth?state={state}"
+
+    async def exchange(self, code: str, verifier: str, nonce: str) -> dict:
+        self.exchanged.append((code, verifier, nonce))
+        if code == "bad":
+            from app.telegram_login import LoginError
+            raise LoginError("bad code")
+        return dict(self.claims)
 
 
 @contextlib.asynccontextmanager
-async def api_client(settings: Settings, bot: FakeBot):
+async def api_client(settings: Settings, bot: FakeBot, login: FakeLogin | None = None):
     db = await Database.open(settings.db_path)
-    app = create_app(settings, db, Catalog.load(CATALOG_PATH), bot)
+    app = create_app(settings, db, Catalog.load(CATALOG_PATH), bot, login)
     try:
         async with TestClient(TestServer(app)) as client:
             yield client, db

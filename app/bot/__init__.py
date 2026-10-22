@@ -14,6 +14,7 @@ log = logging.getLogger(__name__)
 USER_COMMANDS = [
     BotCommand(command="start", description="Открыть магазин"),
     BotCommand(command="my_orders", description="Мои заказы"),
+    BotCommand(command="logout", description="Выйти с сайта на всех устройствах"),
 ]
 ADMIN_COMMANDS = USER_COMMANDS + [
     BotCommand(command="edit_offer", description="Заказы: статусы и трек-номера"),
