@@ -619,7 +619,9 @@ async def errors_and_cache(request: web.Request, handler):
         log.exception("Ошибка при обработке %s %s", request.method, request.path)
         return fail("Внутренняя ошибка сервера", 500)
     if request.path.startswith("/assets/"):
-        response.headers.setdefault("Cache-Control", "public, max-age=86400")
+        # медиа заменяют под теми же именами (фото товаров, видео) — браузер должен перепроверять по Last-Modified,
+        # иначе сутки показывает старый файл
+        response.headers.setdefault("Cache-Control", "public, no-cache")
     elif request.path.startswith(("/auth/", "/pay/", "/api/me", "/api/payment/", "/api/order/")):
         response.headers.setdefault("Cache-Control", "no-store")  # зависят от cookie/оплаты
     else:  # html, css, js, api — всегда свежие (браузер перепроверяет по Last-Modified)
@@ -632,6 +634,7 @@ def create_app(settings: Settings, db: Database, catalog: Catalog, bot: Bot, log
     """login, payments, cdek, pochta — общие с ботом клиенты (или подмены в тестах); по умолчанию — из настроек."""
     app = web.Application(middlewares=[errors_and_cache], client_max_size=64 * 1024)
     app[SETTINGS], app[DB], app[CATALOG], app[BOT], app[LAST_ORDER] = settings, db, catalog, bot, {}
+    catalog.attach_variants(settings.web_dir)
     if login is None and settings.login_enabled:
         login = TelegramLogin(settings.login_client_id, settings.login_client_secret, settings.login_redirect_uri)
     app[LOGIN] = login

@@ -601,9 +601,11 @@ a.catalog-footer-link { text-decoration: none; }
 
 .curtains { padding: 16px 0 24px; }
 
-.curtain-group + .curtain-group { margin-top: 64px; }
-/* блок без названия — продолжение той же коллекции: отступ даёт «Tap to view» над ним */
-.curtain-group + .curtain-group:not(:has(.curtain-name)) { margin-top: 0; }
+.curtain-group + .curtain-group { margin-top: 40px; }
+/* «Tap to view» и название следующей коллекции идут друг под другом без зазора */
+.curtain-group:has(.curtain-hint) + .curtain-group { margin-top: 0; }
+/* блок без названия — продолжение той же коллекции: отступ от предыдущего фото заметнее */
+.curtain-group + .curtain-group:not(:has(.curtain-name)) { margin-top: 48px; }
 
 .curtain-name {
     margin: 0 var(--pad) 24px;
@@ -739,9 +741,9 @@ a.catalog-footer-link { text-decoration: none; }
 .curtain.dragging .curtain-grip::before { transform: translateX(-3px) rotate(45deg); }
 .curtain.dragging .curtain-grip::after { transform: translateX(3px) rotate(-135deg); }
 
-/* подсказка, что фото открывает товар: слева, между блоками */
+/* подсказка, что фото открывает товар: слева, вплотную к названию следующей коллекции */
 .curtain-hint {
-    padding: 20px var(--pad) 28px;
+    padding: 20px var(--pad) 0;
     font-size: 12px;
     font-weight: 600;
     line-height: 1.15;
@@ -848,10 +850,9 @@ a.catalog-footer-link { text-decoration: none; }
 
     .collection-shot { object-fit: cover; }
 
-    /* студийное фото — целиком, по центру, на чёрном */
+    /* студийное фото — в том же кадре, что и фото коллекции: заполняет блок, маска даёт те же размытые края */
     .collection-studio {
-        object-fit: contain;
-        padding: 6% 0;
+        object-fit: cover;
         opacity: 0;
     }
 
@@ -924,6 +925,18 @@ a.catalog-footer-link { text-decoration: none; }
 .status-out { color: var(--danger); }
 
 /* --- товар --- */
+
+/* Фото начинается от самого верха и заходит под шапку: она прозрачна, пока карточку не прокрутили,
+   — так на телефоне фото видно целиком, без листания до его низа. */
+#product-screen { padding-top: 0; }
+body[data-screen="product"] .topbar { background: transparent; }
+body[data-screen="product"].topbar-scrolled .topbar { background: var(--bg); }
+/* фото бывает и на белом фоне — крестик, кнопки разделов и «M» должны читаться на нём */
+body[data-screen="product"] .topbar-close,
+body[data-screen="product"] .nav-btn {
+    text-shadow: 0 0 1px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.55);
+}
+body[data-screen="product"] .logo img { filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.6)); }
 
 .carousel-container {
     position: relative;
@@ -1805,17 +1818,77 @@ button.cart-item-link {
 
 .brand-screen-content { overflow-x: clip; }
 
-/* видео на телефоне: на всю ширину экрана (поверх полей страницы), пропорции видео 16:9 */
-.brand-reel {
+/* видео на телефоне: на всю ширину экрана (поверх полей страницы), пропорции видео 16:9.
+   Полную ширину задаёт обёртка — она же держит кнопку звука поверх видео. */
+.brand-media {
     position: relative;
     width: 100vw;
     margin: 0 0 32px calc(50% - 50vw);
+}
+
+.brand-reel {
+    position: relative;
+    width: 100%;
     aspect-ratio: 16 / 9;
     overflow: hidden;
     background: var(--bg);
     touch-action: pan-y; /* вертикальная прокрутка — странице, горизонтальный свайп — видео */
     user-select: none;
     -webkit-user-select: none;
+}
+
+/* звук: на телефоне — в левом верхнем углу видео, на ПК — в левом нижнем (правило в широком экране) */
+.brand-sound {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 2;
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.35);
+    color: var(--text);
+    cursor: pointer;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.brand-sound:active { opacity: 0.6; }
+
+.brand-sound:focus-visible {
+    outline: 1px solid currentColor;
+    outline-offset: 3px;
+}
+
+@media (hover: hover) {
+    .brand-sound:hover { background: rgba(0, 0, 0, 0.55); }
+}
+
+.brand-sound svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* динамик залит, волны и перечёркивание — линиями: выключено — с косой чертой, включено — с волнами */
+.brand-sound-speaker { fill: currentColor; stroke: none; }
+.brand-sound-wave { opacity: 0; transition: opacity 0.15s ease; }
+.brand-sound.on .brand-sound-wave { opacity: 1; }
+.brand-sound-slash { opacity: 1; transition: opacity 0.15s ease; }
+.brand-sound.on .brand-sound-slash { opacity: 0; }
+
+/* видео не играют — звук не нужен */
+@media (prefers-reduced-motion: reduce) {
+    .brand-sound { display: none; }
 }
 
 .brand-reel-track {
@@ -1861,7 +1934,9 @@ button.cart-item-link {
 .brand-reel-dots span.active { background: var(--text); }
 
 .brand-slide { display: none; }
-.brand-text-slide + .brand-text-slide { display: none; }
+/* телефон: виден только текст того видео, которое сейчас на экране (класс ставит app.js) */
+.brand-text-slide { display: none; }
+.brand-text-slide.active { display: block; }
 
 .brand-text-card {
     max-width: 62ch;
@@ -1975,6 +2050,16 @@ button.cart-item-link {
         position: relative;
         overflow: hidden;
         background: var(--bg);
+        /* на телефоне обёртка растянута на всю ширину — здесь она просто колонка сетки */
+        width: auto;
+        margin: 0;
+    }
+
+    /* звук на ПК — в левом нижнем углу видео */
+    .brand-sound {
+        top: auto;
+        left: clamp(20px, 2vw, 32px);
+        bottom: clamp(20px, 2vw, 32px);
     }
 
     .brand-reel { display: none; }
@@ -2615,7 +2700,7 @@ body.in-tg .lightbox-close { display: none; }
         padding-left: var(--pad);
         padding-right: var(--pad);
     }
-    .product-info-box { padding: 8px 0 56px; }
+    .product-info-box { padding: calc(var(--bar-h) + 8px) 0 56px; }
 
     /* карточка товара как у Divinity: слева «M», справа крестик, кнопок разделов нет */
     body[data-screen="product"] .logo { display: flex; }
@@ -2629,8 +2714,10 @@ body.in-tg .lightbox-close { display: none; }
     /* вместо точек под фото — миниатюры в правой колонке */
     #product-screen .carousel-dots { display: none; }
     .product-thumbs {
-        display: flex;
-        flex-wrap: wrap;
+        display: grid;
+        /* по 4 в ряд: у худи 8 фото (папки first и second) ложатся в две строки,
+           карусель переходит с конца первой строки в начало второй */
+        grid-template-columns: repeat(4, 64px);
         gap: 10px;
         margin-bottom: 32px;
     }

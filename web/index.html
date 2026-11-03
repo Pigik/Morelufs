@@ -128,6 +128,14 @@
     <div id="brand-screen" class="screen">
         <div class="brand-screen-content">
             <div class="brand-media">
+                <!-- звук в About выключен по умолчанию; кнопка включает его тому видео, что последним открылось целиком (app.js, setBrandSound) -->
+                <button type="button" id="brand-sound" class="brand-sound" aria-pressed="false" aria-label="Включить звук">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path class="brand-sound-speaker" d="M4 9h4l5-4v14l-5-4H4z"/>
+                        <path class="brand-sound-wave" d="M15.5 9.2a4 4 0 0 1 0 5.6M18.3 6.6a8 8 0 0 1 0 10.8"/>
+                        <path class="brand-sound-slash" d="M3.5 3.5l17 17"/>
+                    </svg>
+                </button>
                 <!-- узкий экран: видео на всю ширину, листаются свайпом и сами по окончании (app.js, раздел «видео на телефоне»).
                      Третье пока повторяет второе. src подставляет app.js, когда открыт About -->
                 <div class="brand-reel" aria-hidden="true">
@@ -155,9 +163,9 @@
                     <!-- заголовок и цитата — только в узкой версии; на широкой их скрывает CSS -->
                     <h2 class="brand-narrow-only">О бренде MORELUFS</h2>
                     <blockquote class="brand-quote brand-narrow-only">LUFS - условная единица измерения громкости аудиосигнала.</blockquote>
-                    <!-- тексты слайдов; на узком экране виден только первый -->
+                    <!-- тексты слайдов; на узком экране показывается текст видео, которое сейчас на экране (app.js) -->
                     <div class="brand-text-slides">
-                        <div class="brand-text-slide">
+                        <div class="brand-text-slide active">
                             <p>Когда глаза хотят видеть больше, когда ноги хотят идти дальше, когда сердце не может стучаться без одержимости своим делом, мы не молчим - мы звучим.</p>
                             <p>Morelufs - это личность, отражающая историю двух душ, одержимых,  поглощенных, но не усопших в своей мечте. Пропитанные самобытностью своего маленького северного города, они рискнули и пересекли видимый горизонт, для того, чтобы их внутренний звук обрёл эхо.</p>
                         </div>

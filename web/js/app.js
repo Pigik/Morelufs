@@ -25,11 +25,20 @@ const ANGELS_ADVICE = {
 };
 const COLLECTIONS = [
     {
+        name: 'Hoodie Without designers',
+        text: 'Никто не сделает твою работу лучше чем ты сам. Without designers - это протест лично против тебя. Думаешь стоит передавать какому то «профессионалу» свои инструменты? Пренебрежение своим видением из за страха быть не понятым  или неуверенности в себе влечет еще большее разочарование. Do it yourself',
+        date: '',
+        photo: 'assets/img/collection-hoodie.webp',
+        focus: '50% 50%',
+        id: 4,
+    },
+    {
         ...ANGELS_ADVICE,
         text: 'Это был первый осязаемый  импульс. Одержимость вышла за пределы запечатанного короба. Идеи больше не вянут в моей голове, они касаются нас в зеркалах, гардеробах, глазах - жизни.',
         date: '',
         photo: 'assets/img/collection-zip.webp',
         focus: '50% 100%', // какая часть фото остаётся в кадре — человек внизу снимка
+        hover: 1, // на наведении — второе фото товара (p.images[1])
         id: 1,
     },
     {
@@ -38,15 +47,8 @@ const COLLECTIONS = [
         date: '06.10.25', // дата общая для обеих зипок, стоит у второй
         photo: 'assets/img/collection-zip-grey.webp',
         focus: '50% 100%',
+        hover: 1, // на наведении — второе фото товара (p.images[1])
         id: 2,
-    },
-    {
-        name: 'Without designer collection',
-        text: 'Никто не сделает твою работу лучше чем ты сам. Without designers - это протест лично против тебя. Думаешь стоит передавать какому то «профессионалу» свои инструменты? Пренебрежение своим видением из за страха быть не понятым  или неуверенности в себе влечет еще большее разочарование. Do it yourself',
-        date: '',
-        photo: 'assets/img/collection-long.webp',
-        focus: '50% 50%',
-        id: 4,
     },
 ];
 const CHECKOUT_FIELDS = ['name', 'surname', 'patronymic', 'phone', 'telegram', 'email', 'comment', 'address'];
@@ -169,6 +171,7 @@ function renderScreenInternal(screenId, restoreScroll = false) {
     document.body.dataset.screen = screenId;
     document.body.dataset.section = SECTION[screenId] || '';
     if (screenId === 'brand') {
+        resetAboutVideos();
         resetBrandSlide();
         resetReel();
     }
@@ -188,7 +191,15 @@ function renderScreenInternal(screenId, restoreScroll = false) {
     }
     // после перерисовки содержимого, иначе каталог ещё пустой и прокрутка упрётся в верх
     if (target) target.scrollTop = restoreScroll ? scrollMemo[target.id] || 0 : 0;
+    syncProductTopbar();
     updateBackButton();
+}
+
+// Шапка карточки товара прозрачна и лежит поверх фото; после прокрутки она снова чёрная,
+// иначе текст карточки просвечивал бы сквозь неё и мешал кнопкам.
+function syncProductTopbar() {
+    const screen = $('product-screen');
+    document.body.classList.toggle('topbar-scrolled', Boolean(screen && screen.scrollTop > 8));
 }
 
 // --- видео в разделе About ---
@@ -201,25 +212,60 @@ const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
 // Колесо двигает цель, кадр плавно догоняет её; колесо стоит — слайды стоят.
 let brandPos = 0;
 let brandTarget = 0;
+let brandRaw = 0; // накопленный ход колеса: от него считаем цель, чтобы залипать на слайдах
 let brandFrame = 0;
+
+// Залипание на полном внутреннем слайде (втором): цель держится на нём, пока колесо
+// не пройдёт небольшую зону в обе стороны, — нужно чуть сильнее крутнуть, чтобы уехать дальше.
+const BRAND_STICKY = 0.08;
+
+function stickyBrandTarget(raw, last) {
+    for (let i = 1; i < last; i++) {
+        if (raw > i - BRAND_STICKY && raw < i + BRAND_STICKY) return i;
+    }
+    return raw;
+}
 
 const brandSlides = () => document.querySelectorAll('.brand-slide');
 const brandTexts = () => document.querySelectorAll('.brand-text-slide');
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
 
+// Звук в About выключен по умолчанию: видео играют немыми. Кнопка включает звук тому видео,
+// которое последним открылось целиком (флаг brandAudible).
+let brandSound = false;
+
 // Слайд i виден, пока следующий не накрыл его целиком.
 const brandVisible = (i) => i - brandPos < 1 && brandPos - i < 1;
+
+// Флаг «последнее открытое целиком видео»: меняется, только когда листание прошло целый слайд.
+// Недолистал до следующего и вернулся — звук остаётся у прежнего; звук переходит к следующему,
+// когда тот встал на экран полностью.
+let brandAudible = 0;
+
+// Пересечение целых границ между кадрами: вниз — когда следующий слайд встал целиком,
+// вверх — когда целиком открылся предыдущий.
+function updateBrandAudible(prev, next) {
+    if (next > prev) {
+        const crossed = Math.floor(next);
+        if (crossed > prev && crossed > brandAudible) brandAudible = crossed;
+    } else if (next < prev) {
+        const crossed = Math.floor(prev);
+        if (crossed >= next && crossed < brandAudible) brandAudible = crossed;
+    }
+}
 
 function syncBrandVideo() {
     const slides = brandSlides();
     if (!slides.length) return;
     const onAbout = historyStack[historyStack.length - 1] === 'brand';
     const show = onAbout && WIDE_MAIN.matches && !REDUCED_MOTION.matches;
+    const audible = clamp(brandAudible, 0, slides.length - 1);
     slides.forEach((slide, i) => {
         const video = slide.querySelector('.brand-video');
+        video.muted = !(show && brandSound && i === audible);
         if (show && brandVisible(i)) {
             if (!video.getAttribute('src')) video.src = video.dataset.src;
-            if (video.paused) video.play().catch(() => { /* автоплей запрещён — остаётся постер */ });
+            playBrandVideo(video);
         } else if (!video.paused) {
             video.pause();
         }
@@ -238,6 +284,32 @@ function syncBrandVideo() {
         }, { once: true });
     }
 }
+
+// Играет видео. Если браузер запретил звук, кнопка возвращается в «выключено» и видео идёт немым.
+function playBrandVideo(video, retry = true) {
+    if (!video.paused) return;
+    video.play().catch((err) => {
+        if (!retry) return;
+        if (err?.name === 'NotAllowedError' && brandSound) {
+            setBrandSound(false); // sync* заново запустит видео, уже без звука
+            return;
+        }
+        video.muted = true;
+        playBrandVideo(video, false);
+    });
+}
+
+function setBrandSound(on) {
+    brandSound = on;
+    const button = $('brand-sound');
+    button.classList.toggle('on', on);
+    button.setAttribute('aria-pressed', String(on));
+    button.setAttribute('aria-label', on ? 'Выключить звук' : 'Включить звук');
+    syncBrandVideo();
+    syncReel();
+}
+
+$('brand-sound')?.addEventListener('click', () => setBrandSound(!brandSound));
 
 // Строки текста слайда (верх и низ относительно самого слайда) — по реальным переносам на экране.
 // Сбрасывается при смене размера окна и после загрузки шрифта.
@@ -319,17 +391,28 @@ function applyBrandPos() {
 
 function brandTick() {
     const d = brandTarget - brandPos;
+    const prev = brandPos;
     brandPos = Math.abs(d) < 0.0005 ? brandTarget : brandPos + d * 0.2;
+    updateBrandAudible(prev, brandPos);
     applyBrandPos();
     brandFrame = brandPos === brandTarget ? 0 : requestAnimationFrame(brandTick);
 }
 
-// Мгновенно, без анимации: при входе в About всегда первый слайд.
+// Мгновенно, без анимации: при входе в About всегда первый слайд (и звук с него).
 function resetBrandSlide() {
     cancelAnimationFrame(brandFrame);
     brandFrame = 0;
-    brandPos = brandTarget = 0;
+    brandPos = brandTarget = brandRaw = 0;
+    brandAudible = 0;
     applyBrandPos();
+}
+
+// Каждое открытие About — с начала: видео (и звук в нём) перематываем к нулю,
+// чтобы после паузы оно не продолжалось с середины. Работает для ПК и телефона.
+function resetAboutVideos() {
+    document.querySelectorAll('.brand-video, .brand-reel-video').forEach((video) => {
+        if (video.getAttribute('src')) video.currentTime = 0;
+    });
 }
 
 WIDE_MAIN.addEventListener?.('change', () => {
@@ -355,18 +438,12 @@ $('brand-screen')?.addEventListener('wheel', (e) => {
     const media = document.querySelector('.brand-media');
     const height = media?.clientHeight || window.innerHeight;
     const px = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? height : 1);
-    brandTarget = clamp(brandTarget + px / height, 0, brandSlides().length - 1);
+    const last = brandSlides().length - 1;
+    brandRaw = clamp(brandRaw + px / height, 0, last);
+    brandTarget = stickyBrandTarget(brandRaw, last);
     if (!brandFrame) brandFrame = requestAnimationFrame(brandTick);
 }, { passive: true });
 
-
-// Мини-апп: пока палец на шторке каталога или на видео About, свайп вниз не сворачивает приложение —
-// иначе чуть наклонный горизонтальный свайп Telegram принимает за «свернуть». Отпустил — снова можно.
-function holdTgSwipes(hold) {
-    if (!IN_TG) return;
-    if (hold) tg?.disableVerticalSwipes?.();
-    else tg?.enableVerticalSwipes?.();
-}
 
 // --- видео в About на телефоне ---
 
@@ -399,13 +476,16 @@ function syncReel() {
     const onAbout = historyStack[historyStack.length - 1] === 'brand';
     const show = onAbout && !WIDE_MAIN.matches && !REDUCED_MOTION.matches;
     videos.forEach((video, i) => {
+        video.muted = !(show && brandSound && i === reelIdx);
         if (show && i === reelIdx) {
             if (!video.getAttribute('src')) video.src = video.dataset.src;
-            if (video.paused) video.play().catch(() => { /* автоплей запрещён — остаётся постер */ });
+            playBrandVideo(video);
         } else if (!video.paused) {
             video.pause();
         }
     });
+    // на телефоне текст под видео меняется вместе с ним (на ПК это делает applyBrandPos)
+    brandTexts().forEach((text, i) => text.classList.toggle('active', i === reelIdx));
     // следующее подгружаем заранее, когда текущее уже можно смотреть, — чтобы не ждать при смене
     const cur = videos[reelIdx];
     if (show && !cur.dataset.preloadArmed) {
@@ -456,7 +536,6 @@ reelVideos().forEach((video, i) => video.addEventListener('ended', () => {
     reel.addEventListener('pointerdown', (e) => {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         start = { x: e.clientX, y: e.clientY, t: performance.now(), drag: false, id: e.pointerId };
-        holdTgSwipes(true);
     });
     reel.addEventListener('pointermove', (e) => {
         if (!start || e.pointerId !== start.id) return;
@@ -477,7 +556,6 @@ reelVideos().forEach((video, i) => video.addEventListener('ended', () => {
         const fast = Math.abs(dx) > 30 && performance.now() - start.t < 250;
         const wasDrag = start.drag;
         start = null;
-        holdTgSwipes(false);
         if (!wasDrag) return;
         const last = reelVideos().length - 1;
         const dir = Math.abs(dx) > reel.clientWidth / 5 || fast ? -Math.sign(dx) : 0;
@@ -487,7 +565,7 @@ reelVideos().forEach((video, i) => video.addEventListener('ended', () => {
     };
     reel.addEventListener('pointerup', end);
     reel.addEventListener('pointercancel', (e) => {
-        if (start && e.pointerId === start.id) { start = null; placeReel(true); holdTgSwipes(false); }
+        if (start && e.pointerId === start.id) { start = null; placeReel(true); }
     });
 })();
 
@@ -577,14 +655,15 @@ function armCollectionHover() {
     document.addEventListener('pointermove', onMove);
 }
 
-// Блок коллекции: слева название/описание/дата, справа фото (через раз — наоборот).
+// Блок коллекции: слева фото, справа название/описание/дата (через раз — наоборот),
+// как на телефоне: у первого товара фото слева.
 // При наведении фото сменяется студийным фото товара, клик по фото открывает карточку.
 function renderCollections() {
     $('collections').innerHTML = COLLECTIONS.map((c, i) => {
         const p = products.find((x) => x.id === c.id);
         if (!p) return '';
         return `
-            <section class="collection${i % 2 ? ' reverse' : ''}">
+            <section class="collection${i % 2 ? '' : ' reverse'}">
                 <div class="collection-text">
                     ${c.name ? `<h2 class="collection-name">${esc(c.name)}</h2>` : '<div></div>'}
                     ${c.text ? `<p class="collection-desc">${esc(c.text)}</p>` : '<div></div>'}
@@ -592,7 +671,7 @@ function renderCollections() {
                 </div>
                 <button type="button" class="collection-photo" onclick="openProductPage(${p.id})" aria-label="${esc(p.title)}">
                     <img class="collection-shot" src="${esc(c.photo)}" alt="" style="object-position: ${esc(c.focus || '50% 50%')}">
-                    <img class="collection-studio" src="${esc(p.images[0])}" alt="">
+                    <img class="collection-studio" src="${esc(p.images[c.hover ?? 0] ?? p.images[0])}" alt="" style="object-position: ${esc(c.focus || '50% 50%')}">
                 </button>
             </section>`;
     }).join('');
@@ -640,7 +719,6 @@ function bindCurtains() {
         if (!el || (e.pointerType === 'mouse' && e.button !== 0)) return;
         const pos = parseFloat(el.style.getPropertyValue('--pos')) / 100;
         drag = { el, id: e.pointerId, x: e.clientX, y: e.clientY, pos, moved: false };
-        holdTgSwipes(true);
     });
     // мышь над фото — курсор «палец»: фото открывает товар (над текстом и линией — обычный)
     box.addEventListener('pointermove', (e) => {
@@ -668,7 +746,6 @@ function bindCurtains() {
         if (!drag || e.pointerId !== drag.id) return;
         const { el, moved } = drag;
         drag = null;
-        holdTgSwipes(false);
         el.classList.remove('dragging');
         if (moved || !tap) return;
         if (curtainOnPhoto(el, e.clientX)) openProductPage(Number(el.dataset.id));
@@ -707,6 +784,10 @@ function fillProduct(id, size = null) {
         const img = document.createElement('img');
         img.src = src;
         img.alt = `${p.title}, фото ${idx + 1}`;
+        img.decoding = 'async';
+        // первое фото нужно сразу, остальные — по мере листания
+        if (idx === 0) img.fetchPriority = 'high';
+        else img.loading = 'lazy';
         img.onclick = () => openLightbox(idx);
         return img;
     });
@@ -724,7 +805,7 @@ function fillProduct(id, size = null) {
         btn.type = 'button';
         btn.className = `product-thumb${idx === 0 ? ' active' : ''}`;
         btn.setAttribute('aria-label', `Фото ${idx + 1}`);
-        btn.innerHTML = `<img src="${esc(src)}" alt="">`;
+        btn.innerHTML = `<img src="${esc(p.thumbs[idx] ?? p.images[idx])}" alt="" loading="lazy" decoding="async">`;
         btn.onclick = () => setSlide(idx);
         thumbs.appendChild(btn);
     });
@@ -843,15 +924,32 @@ function openLightbox(index) {
         const img = document.createElement('img');
         img.src = src;
         img.alt = '';
+        img.loading = 'lazy'; // крупные версии догружаются по мере листания
+        img.decoding = 'async';
         return img;
     });
     updateLightboxPosition(false);
     $('lightbox-modal').classList.add('active');
+    upgradeLightboxImage();
     resetZoom();
-    tg?.disableVerticalSwipes?.(); // иначе свайп вниз свернёт мини-апп вместо закрытия фото
     historyStack.push('lightbox');
     tg?.BackButton?.show();
     haptic('medium');
+}
+
+// Фото из карусели остаётся на экране, а когда догрузится крупная версия (-full),
+// подменяем src — так зум 4× показывает детали, а не размытые пиксели.
+function upgradeLightboxImage() {
+    const img = lightboxImg();
+    const original = currentProduct?.images[currentLightboxIdx];
+    const big = currentProduct?.zoom?.[currentLightboxIdx];
+    if (!img || !big || big === original || img.dataset.upgraded) return;
+    const hi = new Image();
+    hi.onload = () => {
+        img.src = big;
+        img.dataset.upgraded = '1';
+    };
+    hi.src = big;
 }
 
 function closeLightbox() {
@@ -861,7 +959,6 @@ function closeLightbox() {
     modal.style.transition = '';
     modal.style.backgroundColor = '';
     [...$('lightbox-track').children].forEach((img) => { img.style.opacity = ''; });
-    tg?.enableVerticalSwipes?.();
     if (historyStack[historyStack.length - 1] === 'lightbox') historyStack.pop();
     updateBackButton();
     haptic('light');
@@ -874,6 +971,7 @@ function moveLightbox(dir, event) {
     resetZoom();
     currentLightboxIdx = stepTrack($('lightbox-track'), currentLightboxIdx, dir);
     updateLightboxCounter();
+    upgradeLightboxImage();
     haptic('light');
 }
 
@@ -2501,6 +2599,10 @@ function formatPhone(value) {
 }
 
 function init() {
+    // В мини-аппе свайпы вверх/вниз не сворачивают и не закрывают приложение: в каталоге и карточке
+    // почти весь экран занимают шторки, карусели и видео, и жест легко задеть при листании.
+    // Свернуть/закрыть по-прежнему можно кнопкой в шапке Telegram — она работает всегда.
+    if (IN_TG) tg?.disableVerticalSwipes?.();
     // В мини-аппе есть системная кнопка «назад», поэтому части шапки там можно прятать.
     document.body.classList.toggle('in-tg', Boolean(tg?.initData));
     const phone = $('checkout-phone');
@@ -2520,6 +2622,7 @@ function init() {
     bindCurtains();
     bindSwipe($('main-carousel'));
     bindLightboxGestures($('lightbox-carousel'));
+    $('product-screen')?.addEventListener('scroll', syncProductTopbar, { passive: true });
     // клик по тёмному полю вокруг фото закрывает просмотр (клики по самому фото — в жестах)
     $('lightbox-modal').addEventListener('click', (e) => {
         if (e.target === e.currentTarget || e.target.id === 'lightbox-counter') closeLightbox();

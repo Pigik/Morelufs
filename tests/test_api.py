@@ -2,6 +2,7 @@ from urllib.parse import parse_qs, urlparse
 
 from app import api
 from app.api import pay_link
+from app.catalog import Catalog
 from tests.conftest import ADMINS, FakeBot, FakeLogin, FakeYooKassa, api_client, make_init_data, run
 
 ORDER = {
@@ -42,12 +43,29 @@ def test_catalog_and_static(settings):
         async with api_client(settings, FakeBot()) as (client, _):
             data = await (await client.get("/api/catalog")).json()
             assert [p["id"] for p in data["products"]] == [1, 2, 4]
+            # версии для миниатюр и зума всегда той же длины, что и список фото
+            assert all(len(p["thumbs"]) == len(p["images"]) == len(p["zoom"]) for p in data["products"])
             page = await client.get("/")
             assert page.status == 200 and "text/html" in page.content_type
             assert page.headers["Cache-Control"] == "no-cache"
             assert (await client.get("/js/app.js")).status == 200
             assert (await client.get("/assets/../app/config.py")).status in (403, 404)
     run(scenario())
+
+
+def test_photo_variants(tmp_path):
+    """-sm/-full рядом с фото подхватываются, отсутствующие — заменяются оригиналом."""
+    (tmp_path / "assets" / "p").mkdir(parents=True)
+    for name in ("1.webp", "2.webp", "1-full.webp", "1-sm.webp"):
+        (tmp_path / "assets" / "p" / name).write_bytes(b"")
+    catalog = Catalog.model_validate({"products": [{
+        "id": 1, "title": "Худи", "price": 100, "status": "in_stock", "sizes": ["S"],
+        "images": ["assets/p/1.webp", "assets/p/2.webp"], "weight": 100,
+    }]})
+    catalog.attach_variants(tmp_path)
+    product = catalog.get(1)
+    assert product.thumbs == ["assets/p/1-sm.webp", "assets/p/2.webp"]
+    assert product.zoom == ["assets/p/1-full.webp", "assets/p/2.webp"]
 
 
 def test_auth_required(settings):

@@ -21,6 +21,10 @@ class Product(BaseModel):
     status: ProductStatus
     sizes: list[str]
     images: list[str]
+    # облегчённые версии для миниатюр (-sm) и большие для зума в лайтбоксе (-full).
+    # Заполняет Catalog.attach_variants по файлам рядом с оригиналом; без них — те же фото.
+    thumbs: list[str] = []
+    zoom: list[str] = []
     desc: str = ""
     # граммы, без упаковки; обязательное: без веса служба доставки не посчитает стоимость
     weight: int = Field(gt=0, le=30000)
@@ -28,6 +32,13 @@ class Product(BaseModel):
     @property
     def orderable(self) -> bool:
         return self.status != "sold_out"
+
+
+def variant(image: str, suffix: str, web_dir: Path) -> str:
+    """Путь к версии фото с суффиксом («1-full.webp»), если файл есть рядом с оригиналом."""
+    path = Path(image)
+    alternative = path.with_name(f"{path.stem}{suffix}{path.suffix}")
+    return alternative.as_posix() if (web_dir / alternative).is_file() else image
 
 
 class Catalog(BaseModel):
@@ -39,6 +50,12 @@ class Catalog(BaseModel):
 
     def get(self, product_id: int) -> Product | None:
         return next((p for p in self.products if p.id == product_id), None)
+
+    def attach_variants(self, web_dir: Path) -> None:
+        """Миниатюры (-sm) и крупные фото для зума (-full) — по файлам рядом с оригиналом."""
+        for product in self.products:
+            product.thumbs = [variant(image, "-sm", web_dir) for image in product.images]
+            product.zoom = [variant(image, "-full", web_dir) for image in product.images]
 
 
 class CartLine(BaseModel):

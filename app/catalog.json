@@ -8,12 +8,10 @@
       "status": "sold_out",
       "sizes": ["S", "M", "L"],
       "images": [
-        "assets/products/zip-hoodie-black/5.webp",
-        "assets/products/zip-hoodie-black/6.webp",
-        "assets/products/zip-hoodie-black/3.webp",
-        "assets/products/zip-hoodie-black/4.webp",
         "assets/products/zip-hoodie-black/1.webp",
-        "assets/products/zip-hoodie-black/2.webp"
+        "assets/products/zip-hoodie-black/2.webp",
+        "assets/products/zip-hoodie-black/3.webp",
+        "assets/products/zip-hoodie-black/4.webp"
       ],
       "desc": "Состав:\n100% хлопок, 480 г/м².\nРекомендации по уходу:\nСтирка: Стирать на изнанку. Предпочтительна ручная стирка;\nпри машинной — использовать только деликатный режим при температуре 30 °C. Избегать интенсивного отжима и высоких оборотов.\nГлажка: Гладить только с изнаночной стороны при низкой температуре. Не прикасаться утюгом к молнии."
     },
@@ -25,30 +23,30 @@
       "status": "sold_out",
       "sizes": ["S", "M", "L"],
       "images": [
-        "assets/products/zip-hoodie-grey/5.webp",
-        "assets/products/zip-hoodie-grey/6.webp",
         "assets/products/zip-hoodie-grey/1.webp",
         "assets/products/zip-hoodie-grey/2.webp",
-        "assets/products/zip-hoodie-grey/4.webp",
-        "assets/products/zip-hoodie-grey/3.webp"
+        "assets/products/zip-hoodie-grey/3.webp",
+        "assets/products/zip-hoodie-grey/4.webp"
       ],
       "desc": "Состав:\n100% хлопок, 480 г/м².\nРекомендации по уходу:\nСтирка: Стирать на изнанку. Предпочтительна ручная стирка;\nпри машинной — использовать только деликатный режим при температуре 30 °C. Избегать интенсивного отжима и высоких оборотов.\nГлажка: Гладить только с изнаночной стороны при низкой температуре. Не прикасаться утюгом к молнии."
     },
     {
       "id": 4,
-      "title": "\"Harnessed Chaos Collection\" Longsleeve Black",
+      "title": "Hoodie",
       "price": 2590,
       "weight": 350,
       "old_price": 3190,
       "status": "preorder",
       "sizes": ["S", "M", "L"],
       "images": [
-        "assets/products/longsleeve-black/5.webp",
-        "assets/products/longsleeve-black/6.webp",
-        "assets/products/longsleeve-black/4.webp",
-        "assets/products/longsleeve-black/3.webp",
-        "assets/products/longsleeve-black/2.webp",
-        "assets/products/longsleeve-black/1.webp"
+        "assets/products/hoodie/first/1.webp",
+        "assets/products/hoodie/first/2.webp",
+        "assets/products/hoodie/first/3.webp",
+        "assets/products/hoodie/first/4.webp",
+        "assets/products/hoodie/second/1.webp",
+        "assets/products/hoodie/second/2.webp",
+        "assets/products/hoodie/second/3.webp",
+        "assets/products/hoodie/second/4.webp"
       ],
       "desc": "Состав:\n100% хлопок (кулирная гладь), 250 г/м².\nРекомендации по уходу:\nСтирка:\nСтирать наизнанку. Предпочтительна ручная стирка; при машинной — использовать только деликатный режим при температуре 30–40 °C. Допустим отжим на минимальных оборотах (400–600)\nГлажка:\nГладить только с изнаночной стороны при низкой или средней температуре"
     }
