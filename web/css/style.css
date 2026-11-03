@@ -62,6 +62,9 @@ button, input, textarea {
 
 button { cursor: pointer; }
 
+/* у блоков с display: flex/grid атрибут hidden иначе не срабатывает */
+[hidden] { display: none !important; }
+
 :focus-visible {
     outline: 1px solid var(--text);
     outline-offset: 3px;
@@ -78,7 +81,9 @@ button { cursor: pointer; }
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: calc(18px + env(safe-area-inset-top)) var(--pad) 12px;
+    /* «M»/крестик и кнопки разделов — ровно посередине шапки: отступы сверху и снизу равны,
+       высота шапки = --bar-h (66 = 15 + 36 + 15; на ПК 96 = 28 + 40 + 28) */
+    padding: calc(15px + env(safe-area-inset-top)) var(--pad) 15px;
     background: var(--bg);
 }
 
@@ -166,6 +171,36 @@ body[data-section="about"] .nav-btn[data-section="about"] { display: none; }
     z-index: 20;
 }
 
+/* Скроллбар экранов (каталог, корзина, оформление): тонкая линия, как разделители, и узкий белый ползунок,
+   под курсором — ярче и шире. Квадратный, как всё на сайте.
+   Только для мыши: на телефонах остаётся системный плавающий скроллбар, иначе он отнял бы ширину у вёрстки. */
+@media (hover: hover) and (pointer: fine) {
+    .screen::-webkit-scrollbar { width: 9px; }
+
+    .screen::-webkit-scrollbar-track {
+        background: linear-gradient(to right, transparent 4px, var(--line) 4px, var(--line) 5px, transparent 5px);
+    }
+
+    .screen::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.45) padding-box;
+        border: 3px solid transparent;
+        min-height: 40px;
+    }
+
+    .screen::-webkit-scrollbar-thumb:hover { background-color: var(--soft); border-width: 2px; }
+    .screen::-webkit-scrollbar-thumb:active { background-color: var(--text); border-width: 2px; }
+    .screen::-webkit-scrollbar-button,
+    .screen::-webkit-scrollbar-corner { display: none; background: transparent; }
+
+    /* Firefox не знает ::-webkit-scrollbar — ему стандартные свойства (в Chrome они отключили бы стили выше) */
+    @supports not selector(::-webkit-scrollbar) {
+        .screen {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.45) transparent;
+        }
+    }
+}
+
 .main-title {
     font-size: 20px;
     font-weight: 600;
@@ -212,38 +247,60 @@ body[data-screen="orders"] .topbar-close,
 body[data-screen="checkout"] .topbar-close { display: block; }
 
 
-/* Пустая корзина: по центру кнопка ADD (в каталог); TOTAL 0 ₽ и неактивная кнопка оформления остаются внизу */
-#cart-screen.is-empty #cart-items-container { padding-bottom: 0; }
+/* Пустая корзина: «Корзина пуста» — на той же высоте, что «Нет текущих заказов» (см. .orders-empty).
+   Экран — колонка без отступа под шапку, подвал встаёт в поток внизу, надпись занимает остаток. */
+#cart-screen.is-empty {
+    display: flex;
+    flex-direction: column;
+    padding-top: 0;
+}
+
+#cart-screen.is-empty #cart-items-container {
+    flex: 1;
+    display: flex;
+    width: 100%;
+    padding-bottom: 0;
+}
+
+#cart-screen.is-empty .cart-summary {
+    position: static;
+    flex-shrink: 0;
+}
 
 .cart-empty {
-    min-height: calc(100dvh - var(--bar-h) - 40px);
+    flex: 1;
     display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0 24px;
+    text-align: center;
+    animation: fade-in 0.3s ease-out both;
 }
 
-.cart-add {
-    background: none;
-    border: 0;
-    padding: 8px 16px;
-    font-size: 24px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text);
-    transition: opacity 0.15s ease;
+/* Пустые корзина и заказы: заголовок стоит на одной высоте — выше центра области на --empty-lift,
+   строки под ним (.empty-sub) не сдвигают его, сколько бы их ни было. */
+.empty-state {
+    position: relative;
+    --empty-lift: calc(40px + 3 * 1.6 * 13px); /* прежнее место + 3 строки подсказки */
+    transform: translateY(calc(-1 * var(--empty-lift)));
 }
 
-.cart-add:active { opacity: 0.6; }
-
-@media (hover: hover) {
-    .cart-add:hover { opacity: 0.6; }
+.empty-sub {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    width: min(560px, calc(100vw - 48px));
+    transform: translateX(-50%);
+    padding-top: 14px;
 }
 
-/* Фон корзины — фото как есть (цвет правится в исходнике), шапка поверх него прозрачная */
-#cart-screen { background: var(--bg) url('../assets/img/cart-bg.webp') center / cover no-repeat; }
-body[data-screen="cart"] .topbar { background: transparent; }
+/* на телефоне подсказка переносится и блок был выше центра сильнее — от того места тоже на 3 строки */
+@media (max-width: 599px) {
+    .empty-state { --empty-lift: calc(59px + 3 * 1.6 * 13px); }
+}
 
+/* «Входя, вы даёте согласие…» — сразу под строкой «Заказывали раньше?…» */
+.empty-sub .legal-note { margin-top: 2px; }
 
 .text-link {
     background: none;
@@ -399,7 +456,10 @@ body::after {
 .faq-list li { border-bottom: 1px solid var(--line); }
 
 .faq-q {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
     width: 100%;
     padding: 20px 0;
     background: none;
@@ -415,6 +475,71 @@ body::after {
 }
 
 .faq-q:active { opacity: 0.6; }
+
+/* плюс из двух линий; при открытии вертикальная ложится — получается минус */
+.faq-icon {
+    position: relative;
+    flex: none;
+    width: 0.85em;
+    height: 0.85em;
+}
+
+.faq-icon::before,
+.faq-icon::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    width: 100%;
+    height: 1.5px;
+    margin-top: -0.75px;
+    background: currentColor;
+    transition: transform 0.35s var(--ease);
+}
+
+.faq-icon::after { transform: rotate(90deg); }
+.faq-item.open .faq-icon::after { transform: rotate(0deg); }
+
+/* высота 0fr → 1fr анимируется без замера в JS, всё ниже плавно уезжает */
+.faq-a {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.4s var(--ease);
+}
+
+.faq-item.open .faq-a { grid-template-rows: 1fr; }
+
+.faq-a-inner {
+    overflow: hidden;
+    min-height: 0;
+}
+
+.faq-a p {
+    max-width: 62ch;
+    padding: 0 0 22px;
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--soft);
+    opacity: 0;
+    transform: translateY(-6px);
+    transition: opacity 0.25s ease, transform 0.4s var(--ease);
+}
+
+.faq-item.open .faq-a p {
+    opacity: 1;
+    transform: none;
+    transition-delay: 0.08s;
+}
+
+.faq-link {
+    color: var(--text);
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-underline-offset: 3px;
+    transition: text-decoration-color 0.15s ease;
+}
+
+.faq-link:active { text-decoration-color: var(--text); }
 
 .catalog-footer {
     margin-top: auto;
@@ -440,9 +565,11 @@ body::after {
 }
 
 .catalog-footer-link:active { color: var(--text); }
+a.catalog-footer-link { text-decoration: none; }
 
 @media (hover: hover) {
     .faq-q:hover { opacity: 0.6; }
+    .faq-link:hover { text-decoration-color: var(--text); }
     .catalog-footer-link:hover { color: var(--text); }
 }
 
@@ -451,6 +578,7 @@ body::after {
     .faq { padding: 5vw 3vw 6vw; }
     .faq-title { margin-bottom: 3vw; font-size: max(44px, 4.4vw); }
     .faq-q { padding: 1.7vw 0; font-size: max(13px, 0.97vw); }
+    .faq-a p { padding-bottom: 1.9vw; font-size: max(13px, 0.92vw); }
 
     .catalog-footer {
         display: flex;
@@ -462,29 +590,189 @@ body::after {
     .catalog-footer-link { font-size: max(12px, 0.85vw); }
 }
 
-/* --- коллекции (широкий экран; на телефоне — обычная сетка выше) --- */
+/* --- коллекции (широкий экран; на телефоне — шторки ниже) --- */
 
 .collections { display: none; }
-.title-wide { display: none; }
-.color-section { display: none; }
 
-.color-chip {
-    width: auto;
-    min-width: 48px;
-    padding: 0 14px;
-    font-size: 13px;
+/* --- коллекции на телефоне: фото и описание, между ними шторка (app.js, renderCurtains) --- */
+
+/* сетка карточек на телефоне не показывается; остаётся только для «Загрузка…» и ошибки загрузки */
+#products-grid:has(.product-card) { display: none; }
+
+.curtains { padding: 16px 0 24px; }
+
+.curtain-group + .curtain-group { margin-top: 64px; }
+/* блок без названия — продолжение той же коллекции: отступ даёт «Tap to view» над ним */
+.curtain-group + .curtain-group:not(:has(.curtain-name)) { margin-top: 0; }
+
+.curtain-name {
+    margin: 0 var(--pad) 24px;
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.3;
+    letter-spacing: 0.02em;
+    text-align: center;
+}
+
+/* Фото и текст лежат друг на друге на всю ширину экрана; --pos — положение линии от левого края.
+   Обычный блок: фото слева от линии, текст справа; зеркальный (.reverse) — наоборот. */
+.curtain {
+    --pos: 75%;
+    position: relative;
+    aspect-ratio: 3 / 2;
+    overflow: hidden;
+    touch-action: pan-y; /* вертикально — прокрутка страницы, горизонтально — шторка */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* мышь над фото — «палец» (класс ставит app.js по положению линии) */
+.curtain.over-photo { cursor: pointer; }
+
+.curtain-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    pointer-events: none;
+    -webkit-user-drag: none;
+    /* края фото растворяются в чёрный, как на ПК: с внешней стороны и сверху/снизу; со стороны шторки край чёткий */
+    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14%), linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(to right, transparent 0, #000 14%), linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+    mask-composite: intersect;
+    clip-path: inset(0 calc(100% - var(--pos)) 0 0);
+}
+
+.curtain.reverse .curtain-photo {
+    -webkit-mask-image: linear-gradient(to left, transparent 0, #000 14%), linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+    mask-image: linear-gradient(to left, transparent 0, #000 14%), linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+    clip-path: inset(0 0 0 var(--pos));
+}
+
+/* текст не переносится заново при движении шторки — она его просто открывает или закрывает */
+.curtain-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 calc(var(--pad) + 14px); /* поле шире стрелок шторки, когда она у края */
+    clip-path: inset(0 0 0 var(--pos));
+    pointer-events: none;
+}
+
+.curtain.reverse .curtain-text { clip-path: inset(0 calc(100% - var(--pos)) 0 0); }
+
+.curtain-text p {
+    font-size: 11px;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
+}
+
+/* линия шторки: тонкая, со слабым свечением; внизу по бокам от неё — стрелки ‹ › */
+.curtain-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: clamp(14px, var(--pos), calc(100% - 14px)); /* у края стрелки не уходят за экран */
+    width: 1px;
+    margin-left: -0.5px;
+    background: var(--text);
+    box-shadow: 0 0 6px rgba(255, 255, 255, 0.45);
+    pointer-events: none;
+}
+
+/* Стрелки — два уголка из рамок, с тем же свечением, что у линии. В покое раз в несколько секунд
+   слегка расходятся и возвращаются («дышат») — подсказка, что линию можно двигать;
+   пока тянешь — разошлись и ярче. */
+.curtain-grip {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+}
+
+.curtain-grip::before,
+.curtain-grip::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    width: 6px;
+    height: 6px;
+    border: solid var(--text);
+    border-width: 0 0 1px 1px;
+    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
+    opacity: 0.85;
+    transition: opacity 0.2s ease;
+    animation: 4s ease-in-out infinite;
+}
+
+.curtain-grip::before {
+    right: 5px;
+    transform: rotate(45deg);
+    animation-name: curtain-breathe-left;
+}
+
+.curtain-grip::after {
+    left: 5px;
+    transform: rotate(-135deg);
+    animation-name: curtain-breathe-right;
+}
+
+@keyframes curtain-breathe-left {
+    0%, 70%, 100% { transform: translateX(0) rotate(45deg); }
+    82% { transform: translateX(-3px) rotate(45deg); }
+}
+
+@keyframes curtain-breathe-right {
+    0%, 70%, 100% { transform: translateX(0) rotate(-135deg); }
+    82% { transform: translateX(3px) rotate(-135deg); }
+}
+
+.curtain.dragging .curtain-grip::before,
+.curtain.dragging .curtain-grip::after {
+    opacity: 1;
+    animation: none;
+    transition: transform 0.2s var(--ease), opacity 0.2s ease;
+}
+
+.curtain.dragging .curtain-grip::before { transform: translateX(-3px) rotate(45deg); }
+.curtain.dragging .curtain-grip::after { transform: translateX(3px) rotate(-135deg); }
+
+/* подсказка, что фото открывает товар: слева, между блоками */
+.curtain-hint {
+    padding: 20px var(--pad) 28px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.15;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+}
+
+/* дата коллекции — справа, прикрыта фото; открывается, когда шторка проходит над ней.
+   clip-path на весь блок (inset: 0), чтобы проценты считались от ширины экрана, как у текста */
+.curtain-date {
+    position: absolute;
+    inset: 0;
+    clip-path: inset(0 0 0 var(--pos));
+    pointer-events: none;
+}
+
+.curtain.reverse .curtain-date {
+    clip-path: inset(0 calc(100% - var(--pos)) 0 0);
+}
+
+.curtain-date span {
+    position: absolute;
+    bottom: 14px;
+    left: 85%;
+    font-size: 11px;
+    letter-spacing: 0.01em;
 }
 
 @media (min-width: 900px) and (min-aspect-ratio: 1/1) {
-    #products-grid { display: none; }
+    #products-grid, .curtains { display: none; }
     .collections { display: block; padding: 8px 0 clamp(48px, 5vw, 80px); }
-
-    .title-narrow { display: none; }
-    .title-wide { display: inline; }
-    .color-section { display: block; }
-    .color-section[hidden] { display: none; }
 
     /* текст на половине экрана, фото — до края экрана; блоки идут в шахматном порядке */
     .collection {
@@ -524,6 +812,7 @@ body::after {
         justify-self: end;
         font-size: max(11px, 0.825vw);
     }
+
 
     /* фото плавно растворяется в чёрный фон со стороны текста и немного сверху/снизу — без жёстких краёв */
     .collection-photo {
@@ -745,6 +1034,32 @@ body::after {
 
 .size-section, .description-section { margin-bottom: 32px; }
 
+/* миниатюры фото товара — на ПК, между размерами и кнопкой */
+.product-thumbs { display: none; }
+
+.product-thumb {
+    width: 64px;
+    aspect-ratio: 1;
+    padding: 0;
+    background: var(--bg);
+    border: 0;
+    opacity: 0.55;
+    transition: opacity 0.15s ease;
+}
+
+.product-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.product-thumb.active { opacity: 1; }
+
+@media (hover: hover) {
+    .product-thumb:hover { opacity: 1; }
+}
+
 .field-label {
     font-size: 13px;
     color: var(--hint);
@@ -950,17 +1265,6 @@ button.cart-item-link {
     font-weight: 600;
 }
 
-.delete-item-btn {
-    background: none;
-    border: 0;
-    font-size: 12px;
-    color: var(--hint);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-}
-
-.delete-item-btn:active { color: var(--danger); }
-
 .cart-summary {
     position: fixed;
     left: 0;
@@ -987,14 +1291,33 @@ button.cart-item-link {
     letter-spacing: 0.02em;
 }
 
-/* ORDER (к заказам) — контурная кнопка слева от оформления, той же высоты */
+/* «Текущие заказы» — контурная кнопка слева от оформления, той же высоты.
+   Доли подобраны так, что на телефоне обе надписи помещаются в строку; если экран ещё уже —
+   надписи переносятся на две строки и остаются по центру. */
 .summary-actions {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
     gap: 10px;
 }
 
+.summary-actions .order-btn,
+.summary-actions .checkout-btn {
+    height: 56px;
+    padding: 0 12px;
+    font-size: 13px;
+    line-height: 1.25;
+    text-align: center;
+}
+
+@media (min-width: 900px) {
+    .summary-actions .order-btn,
+    .summary-actions .checkout-btn { font-size: 14px; }
+}
+
 .order-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     height: 52px;
     padding: 0 22px;
     background: transparent;
@@ -1017,23 +1340,6 @@ button.cart-item-link {
     background: var(--muted-bg);
     color: #555555;
     cursor: not-allowed;
-}
-
-.empty-cart-msg {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 96px 24px;
-    gap: 16px;
-    color: var(--hint);
-    animation: fade-in 0.3s ease-out both;
-}
-
-.empty-cart-msg svg {
-    width: 48px;
-    height: 48px;
-    fill: var(--hint);
-    order: -1;
 }
 
 /* --- оформление --- */
@@ -1155,61 +1461,338 @@ button.cart-item-link {
 .radio-input:checked + .custom-radio { border-color: var(--text); }
 .radio-input:checked + .custom-radio::after { transform: scale(1); }
 
-.submit-order-btn { margin: 32px 0 24px; }
+.submit-order-btn { margin: 24px 0 24px; }
 .submit-order-btn:disabled { opacity: 0.6; }
 
-/* --- оплата по QR --- */
+/* --- галочки согласия и ссылки на документы --- */
 
-.qr-container {
-    max-width: 420px;
-    margin: 0 auto;
-    padding: 0 var(--pad) 48px;
+.consent-stack {
     display: flex;
     flex-direction: column;
-    align-items: center;
+    gap: 14px;
+    margin-top: 28px;
+}
+
+.check-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--soft);
+    cursor: pointer;
+}
+
+.check-input {
+    position: absolute;
+    opacity: 0;
+}
+
+.custom-check {
+    position: relative;
+    width: 16px;
+    height: 16px;
+    margin-top: 1px;
+    border: 1px solid var(--hint);
+    flex-shrink: 0;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.custom-check::after {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 4px;
+    height: 9px;
+    border: solid var(--bg);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) scale(0);
+    transition: transform 0.15s ease;
+}
+
+.check-input:checked + .custom-check { border-color: var(--text); background: var(--text); }
+.check-input:checked + .custom-check::after { transform: rotate(45deg) scale(1); }
+.check-input:focus-visible + .custom-check { outline: 1px solid var(--text); outline-offset: 3px; }
+
+.legal-link {
+    color: var(--text);
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-underline-offset: 3px;
+}
+
+.legal-note {
+    margin-top: 14px;
+    font-size: 11px;
+    line-height: 1.55;
+    color: var(--hint);
     text-align: center;
 }
 
-#qr-screen .screen-head { justify-content: center; }
-
-.qr-instructions {
-    color: var(--hint);
-    max-width: 32ch;
+@media (hover: hover) {
+    .legal-link:hover { text-decoration-color: var(--text); }
 }
 
-.qr-card {
+/* --- доставка в оформлении --- */
+
+.delivery-fields { margin-bottom: 4px; }
+
+/* подсказки городов: список под полем, поверх содержимого ниже */
+.combo { position: relative; }
+
+.suggest-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 5;
+    max-height: 264px;
+    overflow-y: auto;
+    list-style: none;
+    background: var(--bg);
+    border: 1px solid var(--text);
+    border-top: 0;
+}
+
+.suggest-item, .suggest-empty {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    padding: 12px 16px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.suggest-item + .suggest-item { border-top: 1px solid var(--line); }
+.suggest-item.active { background: var(--muted-bg); }
+.suggest-region { font-size: 12px; color: var(--hint); }
+.suggest-empty { color: var(--hint); cursor: default; }
+
+@media (hover: hover) {
+    .suggest-item:hover { background: var(--muted-bg); }
+}
+
+.point-count { margin: 0 0 8px; }
+
+.point-list {
+    list-style: none;
+    border-top: 1px solid var(--line);
+}
+
+.point-list li { border-bottom: 1px solid var(--line); }
+
+.point-item {
     width: 100%;
-    margin: 24px 0 8px;
-    padding: 24px;
-    border: 1px solid var(--line);
     display: flex;
     flex-direction: column;
-    align-items: center;
+    gap: 4px;
+    padding: 14px 0;
+    background: none;
+    border: 0;
+    text-align: left;
+    transition: opacity 0.15s ease;
+}
+
+.point-item:active { opacity: 0.6; }
+.point-item-addr { font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.point-item-meta { font-size: 12px; line-height: 1.5; color: var(--hint); overflow-wrap: anywhere; }
+
+@media (hover: hover) {
+    .point-item:hover .point-item-addr { text-decoration: underline; text-underline-offset: 4px; }
+}
+
+.point-more { width: 100%; margin-top: 12px; height: 48px; }
+
+/* выбранный пункт — в рамке, как выбранный способ доставки */
+.point-card {
+    padding: 14px 16px;
+    border: 1px solid var(--text);
+    margin-bottom: 12px;
+}
+
+.point-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.point-card-name { font-size: 12px; color: var(--hint); overflow-wrap: anywhere; }
+.point-card-head .text-link { flex-shrink: 0; font-size: 12px; }
+.point-card-addr { font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; }
+.point-card-time { margin-top: 6px; font-size: 12px; color: var(--soft); overflow-wrap: anywhere; }
+
+.address-textarea { min-height: 76px; }
+.pochta-quote-btn { width: 100%; height: 48px; margin-bottom: 12px; }
+.pochta-quote-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.delivery-quote {
+    padding: 12px 0 4px;
+    font-size: 13px;
+}
+
+.dq-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
     gap: 12px;
 }
 
-/* банковскому приложению нужен светлый фон вокруг кода */
-.qr-image-wrapper {
-    width: 220px;
-    height: 220px;
-    background: #ffffff;
-    padding: 12px;
+.dq-addr {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--soft);
+    overflow-wrap: anywhere;
 }
 
-.qr-image-wrapper img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
+.dq-addr span { color: var(--hint); }
+.dq-loading { color: var(--hint); }
+
+.delivery-error {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--danger);
 }
 
-.qr-amount-title {
-    font-size: 13px;
-    color: var(--hint);
+/* --- итог оформления и заказа --- */
+
+.checkout-total, .order-sum {
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
 }
 
-.qr-amount-value {
-    font-size: 22px;
+.total-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 4px 0;
+    font-size: 14px;
+}
+
+.total-row dt { color: var(--soft); }
+.total-row dd { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.total-days { color: var(--hint); font-size: 12px; }
+
+.total-row-sum {
+    margin-top: 8px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    font-size: 16px;
     font-weight: 600;
+}
+
+.total-row-sum dt { color: var(--text); text-transform: uppercase; letter-spacing: 0.02em; font-size: 14px; }
+
+/* оформление выключено: вместо формы — короткое объяснение и выход */
+.checkout-off {
+    margin-top: 32px;
+    padding: 24px 0;
+    border-top: 1px solid var(--line);
+}
+
+.checkout-off-text {
+    color: var(--soft);
+    max-width: 44ch;
+    margin-bottom: 20px;
+}
+
+.checkout-off-btn { width: 100%; height: 52px; }
+
+.checkout-note {
+    margin-top: 10px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--hint);
+    text-align: right;
+}
+
+.checkout-note .text-link { font-size: 11px; }
+
+/* --- оплата: ожидание и результат --- */
+
+.pay-container {
+    max-width: 420px;
+    margin: 0 auto;
+    padding: 8px var(--pad) 48px;
+}
+
+.pay-title { margin-bottom: 24px; }
+
+.pay-card {
+    position: relative;
+    padding: 16px;
+    border: 1px solid var(--line);
+    overflow: hidden;
+}
+
+.pay-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 4px 0;
+}
+
+.pay-row span { color: var(--hint); font-size: 13px; }
+.pay-row b { font-weight: 600; font-size: 16px; }
+
+/* пока ждём банк — по нижней кромке карточки бежит отрезок линии */
+.pay-progress {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--text), transparent) no-repeat;
+    background-size: 40% 100%;
+    animation: pay-run 1.6s linear infinite;
+}
+
+@keyframes pay-run {
+    from { background-position: -70% 0; }
+    to { background-position: 170% 0; }
+}
+
+.pay-text {
+    margin: 20px 0 24px;
+    color: var(--soft);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.pay-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.pay-actions .main-action-btn { height: 52px; }
+.pay-actions .order-btn { width: 100%; }
+
+/* --- оплата в «Текущих заказах» --- */
+
+.order-pay {
+    font-size: 12px;
+    color: var(--hint);
+    margin-bottom: 12px;
+}
+
+.order-pay-paid { color: var(--text); }
+.order-sum { margin-top: 12px; }
+.order-sum .total-row { font-size: 13px; }
+.order-sum .total-row-sum { font-size: 14px; }
+.order-sum .total-row-sum dt { font-size: 13px; }
+
+.order-pay-btn {
+    height: 48px;
+    margin-top: 14px;
+    text-decoration: none;
 }
 
 /* --- о бренде (About) --- */
@@ -1220,21 +1803,65 @@ button.cart-item-link {
     padding: 8px var(--pad) 56px;
 }
 
-.brand-main-image {
-    width: 100%;
-    aspect-ratio: 16 / 10;
+.brand-screen-content { overflow-x: clip; }
+
+/* видео на телефоне: на всю ширину экрана (поверх полей страницы), пропорции видео 16:9 */
+.brand-reel {
+    position: relative;
+    width: 100vw;
+    margin: 0 0 32px calc(50% - 50vw);
+    aspect-ratio: 16 / 9;
     overflow: hidden;
-    margin-bottom: 32px;
+    background: var(--bg);
+    touch-action: pan-y; /* вертикальная прокрутка — странице, горизонтальный свайп — видео */
+    user-select: none;
+    -webkit-user-select: none;
 }
 
-.brand-main-image img {
+.brand-reel-track {
+    display: flex;
+    height: 100%;
+    transition: transform 0.45s var(--ease);
+    will-change: transform;
+}
+
+.brand-reel-video {
+    flex: 0 0 100%;
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
+    pointer-events: none; /* без системного меню видео по долгому тапу */
 }
 
-.brand-video { display: none; }
+/* кружочки: сколько видео и какое сейчас; появляются на 2 с и плавно гаснут (app.js, showReelDots) */
+.brand-reel-dots {
+    position: absolute;
+    left: 50%;
+    bottom: 12px;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    pointer-events: none;
+}
+
+.brand-reel-dots.show { opacity: 1; transition-duration: 0.2s; }
+
+.brand-reel-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    border: 1px solid var(--text);
+    box-shadow: 0 0 4px rgba(0, 0, 0, 0.6);
+    transition: background-color 0.2s ease;
+}
+
+.brand-reel-dots span.active { background: var(--text); }
+
+.brand-slide { display: none; }
+.brand-text-slide + .brand-text-slide { display: none; }
 
 .brand-text-card {
     max-width: 62ch;
@@ -1302,14 +1929,32 @@ button.cart-item-link {
         background: transparent;
     }
 
-    /* кнопки — по центру правой колонки; ширина как у её трека в grid ниже */
+    /* Кнопки — над колонкой текста: та же ширина колонки и поля, что у .brand-side, внутри — полоса
+       шириной с текст (min(40ch, 100%) при том же 14px, что у .brand-text-card).
+       CLOTH — у левого края текста, MAIN — по центру, CART — так, чтобы промежутки были равны:
+       левый край CART = правый край полосы − ширина CLOTH. Шрифт моноширинный, поэтому
+       ширина слова = N × 1ch + N × letter-spacing (0.02em). Иконки соцсетей ниже стоят под центрами слов. */
     body[data-screen="brand"] .nav {
         position: absolute;
-        top: 36px;
+        top: 28px; /* как у шапки других экранов */
         right: 0;
         width: max(340px, calc(100% / 3));
+        display: grid;
+        grid-template-columns: min(40ch, 100%);
         justify-content: center;
+        gap: 0;
+        padding: 0 clamp(28px, 3vw, 48px);
         white-space: nowrap;
+    }
+
+    body[data-screen="brand"] .nav-btn { grid-area: 1 / 1; }
+    body[data-screen="brand"] .nav-btn[data-section="cloth"] { justify-self: start; }
+    body[data-screen="brand"] .nav-btn[data-section="main"] { justify-self: center; }
+    body[data-screen="brand"] .nav-btn[data-section="cart"] {
+        justify-self: end;
+        width: calc(5ch + 0.1em); /* ширина слова CLOTH */
+        text-align: left;
+        overflow: visible;
     }
 
     #brand-screen,
@@ -1329,19 +1974,48 @@ button.cart-item-link {
     .brand-media {
         position: relative;
         overflow: hidden;
-        background: var(--bg) url('../assets/video/main-poster.webp') center / cover no-repeat;
+        background: var(--bg);
     }
 
-    .brand-main-image { display: none; }
+    .brand-reel { display: none; }
 
-    .brand-video {
+    /* Слайды лежат друг на друге; постер — фон слайда, виден, пока видео грузится.
+       Следующий выезжает снизу поверх предыдущего вместе с колесом мыши: сдвиг задаёт app.js
+       (applyBrandPos), здесь — только начальное положение. */
+    .brand-slide {
         display: block;
         position: absolute;
         inset: 0;
+        background: var(--bg) center / cover no-repeat;
+        will-change: transform;
+    }
+
+    .brand-slide + .brand-slide {
+        transform: translate3d(0, 100%, 0);
+        visibility: hidden;
+    }
+
+    .brand-slide--main { background-image: url('../assets/video/main-poster.webp'); }
+    .brand-slide--2 { background-image: url('../assets/video/about-2-poster.webp'); }
+    .brand-slide--3 { background-image: url('../assets/video/about-3-poster.webp'); }
+
+    .brand-video {
+        display: block;
         width: 100%;
         height: 100%;
         object-fit: cover;
     }
+
+    /* тексты слайдов друг на друге; какие строки чьи по ходу листания — задаёт app.js (applyBrandPos) */
+    .brand-text-slides { display: grid; }
+
+    .brand-text-slide,
+    .brand-text-slide + .brand-text-slide {
+        display: block;
+        grid-area: 1 / 1;
+    }
+
+    .brand-text-slide + .brand-text-slide { visibility: hidden; }
 
     .brand-side {
         display: flex;
@@ -1359,15 +2033,19 @@ button.cart-item-link {
         justify-content: center;
         max-width: 40ch;
         margin: 0 auto;
-        padding: 24px 0;
+        /* лишняя строка снизу поднимает отцентрованный текст на одну строку (высота строки абзаца: 1.8 × размер) */
+        padding: 24px 0 calc(24px + 2 * 1.8 * clamp(14px, 1.05vw, 16px));
     }
 
     .brand-text-card p { font-size: clamp(14px, 1.05vw, 16px); }
     .brand-narrow-only { display: none; }
 
+    /* та же полоса, что у кнопок шапки; иконки (56px) — под центрами CLOTH / MAIN / CART.
+       Размер шрифта ссылки = размеру кнопок (15px), чтобы ch совпадал с их ch. */
     .brand-links-container {
-        flex-direction: row;
-        justify-content: space-around;
+        display: grid;
+        grid-template-columns: min(40ch, 100%);
+        justify-content: center;
         max-width: none;
         width: 100%;
         margin: 0;
@@ -1376,12 +2054,20 @@ button.cart-item-link {
     }
 
     .brand-social-link {
+        grid-area: 1 / 1;
         width: 56px;
         height: 56px;
         justify-content: center;
         padding: 0;
         border: 0;
+        font-size: 15px;
     }
+
+    /* центр CLOTH: половина ширины слова от левого края */
+    .brand-social-link:nth-child(1) { justify-self: start; margin-left: calc((5ch + 0.1em) / 2 - 28px); }
+    .brand-social-link:nth-child(2) { justify-self: center; }
+    /* центр CART: правый край − ширина CLOTH + половина ширины CART */
+    .brand-social-link:nth-child(3) { justify-self: end; margin-right: calc((5ch + 0.1em) - (4ch + 0.08em) / 2 - 28px); }
 
     .brand-social-link span {
         position: absolute;
@@ -1460,43 +2146,7 @@ button.cart-item-link {
 
 .order-details b { color: var(--text); font-weight: 600; }
 
-/* --- вход на сайт через Telegram: объяснение «зачем» + белая кнопка, как остальные действия --- */
-
-.login-gate {
-    max-width: 520px;
-    padding: 8px 0 48px;
-    animation: fade-in 0.3s ease-out both;
-}
-
-#checkout-login .login-gate { padding-top: 24px; }
-
-.login-lead {
-    font-size: 15px;
-    line-height: 1.6;
-    margin-bottom: 28px;
-}
-
-/* строки через тонкие линии — тот же ритм, что у FAQ */
-.login-why {
-    list-style: none;
-    border-top: 1px solid var(--line);
-    margin-bottom: 32px;
-}
-
-.login-why li {
-    display: grid;
-    gap: 4px;
-    padding: 16px 0;
-    border-bottom: 1px solid var(--line);
-}
-
-.login-why b { font-weight: 600; }
-
-.login-why span {
-    font-size: 13px;
-    line-height: 1.55;
-    color: var(--soft);
-}
+/* --- вход на сайт через Telegram --- */
 
 .login-btn {
     width: 100%;
@@ -1529,14 +2179,7 @@ button.cart-item-link {
     .login-btn:hover { opacity: 0.85; }
 }
 
-.login-note {
-    font-size: 12px;
-    line-height: 1.6;
-    color: var(--hint);
-    margin-top: 14px;
-}
-
-/* ник и «Выйти» справа от заголовка Order */
+/* ник и «Выйти» справа от заголовка «Текущие заказы» */
 .account-slot {
     display: flex;
     align-items: baseline;
@@ -1554,11 +2197,254 @@ button.cart-item-link {
 
 .account-slot .text-link { flex-shrink: 0; }
 
+#orders-screen .orders-title {
+    white-space: nowrap;
+    line-height: 1; /* без лишнего межстрочного — низ букв на линии низа шапки раздела */
+}
+
+/* заголовок — только когда заказы есть (класс ставит app.js); место под ним остаётся, чтобы ник не прыгал */
+#orders-screen:not(.has-orders) .orders-title { visibility: hidden; }
+
+/* на телефоне «Текущие заказы» и ник в одну строку не помещаются — ник с «Выйти» под заголовком */
+@media (max-width: 599px) {
+    #orders-screen .screen-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+    }
+    #orders-screen .account-slot { max-width: 100%; }
+    #orders-screen .account-slot:empty { display: none; }
+}
+
 @media (hover: hover) {
     .text-link:hover { color: var(--text); }
 }
 
 .phone-verified { margin: -4px 0 12px; }
+
+/* Окно «Последний шаг»: как уведомление сайта, только шире и с текстом слева — его читают. */
+.tg-confirm-container {
+    width: calc(100% - 2 * var(--pad));
+    max-width: 420px;
+    padding: 24px;
+    background: var(--bg);
+    border: 1px solid var(--line-strong);
+}
+
+.tg-confirm-title {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.4;
+    margin-bottom: 12px;
+}
+
+.tg-confirm-text {
+    font-size: 13px;
+    line-height: 1.65;
+    color: var(--soft);
+    margin-bottom: 24px;
+}
+
+.tg-confirm-cancel {
+    display: block;
+    margin: 16px auto 0;
+}
+
+/* «Нет текущих заказов»: у гостя под надписью — тихая ссылка на вход.
+   Та же область, что у «Корзина пуста»: от верха сайта до подвала корзины
+   (подвал 133px: рамка 1 + отступы 20 и 16 + строка TOTAL 24 + 16 + кнопки 56; меняешь подвал — поправь).
+   Слой поверх экрана не ловит клики, чтобы «Выйти» в шапке раздела оставалась доступной. */
+.orders-empty {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: calc(133px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 24px;
+    text-align: center;
+    pointer-events: none;
+    animation: fade-in 0.3s ease-out both;
+}
+
+.orders-empty .empty-state > * { pointer-events: auto; }
+
+.orders-empty-title {
+    font-size: 15px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.orders-empty-hint {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--hint);
+}
+
+.orders-empty-hint .text-link { font-size: 13px; }
+
+/* пустая корзина: «Magazine Morelufs в cloth» — белым, остальное серым */
+.empty-accent,
+.empty-accent .text-link { color: var(--text); }
+
+/* --- ник на главной: на месте навигации других экранов, ведёт к заказам --- */
+
+.landing-user {
+    position: absolute;
+    top: calc(15px + env(safe-area-inset-top));
+    right: var(--pad);
+    z-index: 3;
+    max-width: 60vw;
+    height: var(--brand-h);
+    padding: 0;
+    background: none;
+    border: 0;
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    color: var(--soft);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: fade-in 0.8s 0.8s ease both;
+    transition: color 0.15s ease;
+}
+
+.landing-user[hidden] { display: none; }
+.landing-user:active { color: var(--text); }
+
+@media (hover: hover) {
+    .landing-user:hover { color: var(--text); }
+}
+
+/* --- «!» в шапке корзины: бот не может написать первым --- */
+
+.bot-alert {
+    display: none;
+    position: relative;
+    margin-left: 18px;
+    margin-right: auto; /* сразу за «M», навигация остаётся справа */
+}
+
+body[data-screen="cart"] .bot-alert.on { display: block; }
+
+.bot-alert-btn {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--danger);
+    border-radius: 50%;
+    background: var(--bg);
+    color: var(--danger);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+/* одна волна при появлении — заметить, но не мигать постоянно */
+.bot-alert-btn::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border: 1px solid var(--danger);
+    border-radius: 50%;
+    opacity: 0;
+    animation: bot-alert-ring 1.4s 0.4s var(--ease) 2;
+    pointer-events: none;
+}
+
+@keyframes bot-alert-ring {
+    from { transform: scale(1); opacity: 0.9; }
+    to { transform: scale(1.9); opacity: 0; }
+}
+
+.bot-alert.open .bot-alert-btn,
+.bot-alert-btn:active { background: var(--danger); color: var(--bg); }
+
+/* Плашка — как окно уведомлений сайта: чёрная, тонкая рамка, без скруглений.
+   fixed — чтобы на узком экране всегда помещалась между полями, а не уезжала за край. */
+.bot-alert-pop {
+    position: fixed;
+    top: calc(var(--bar-h) - 4px);
+    left: var(--pad);
+    width: min(380px, calc(100vw - 2 * var(--pad)));
+    padding: 18px;
+    background: var(--bg);
+    border: 1px solid var(--line-strong);
+    opacity: 0;
+    visibility: hidden;
+    transform: translate3d(0, -6px, 0);
+    transition: opacity 0.18s ease, transform 0.18s var(--ease), visibility 0.18s;
+    z-index: 60;
+}
+
+/* мостик между «!» и плашкой: курсор доходит до кнопки, не закрыв её */
+.bot-alert-pop::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: 24px;
+}
+
+.bot-alert.open .bot-alert-pop {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+}
+
+@media (hover: hover) {
+    .bot-alert:hover .bot-alert-pop {
+        opacity: 1;
+        visibility: visible;
+        transform: none;
+    }
+    .bot-alert-btn:hover { background: var(--danger); color: var(--bg); }
+}
+
+.bot-alert-title {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+
+.bot-alert-text {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--soft);
+}
+
+.bot-alert-name { color: var(--text); font-weight: 600; }
+
+.bot-alert-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 44px;
+    margin-top: 16px;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    text-decoration: none;
+    transition: opacity 0.15s ease;
+}
+
+.bot-alert-link:active { opacity: 0.8; }
+
+@media (hover: hover) {
+    .bot-alert-link:hover { opacity: 0.85; }
+}
 
 /* --- лайтбокс и уведомление --- */
 
@@ -1714,7 +2600,8 @@ body.in-tg .lightbox-close { display: none; }
         --pad: 40px;
         --bar-h: 96px;
     }
-    .topbar { padding: 36px var(--pad) 16px; }
+    .topbar { padding: 28px var(--pad); }
+    .landing-user { top: 28px; font-size: 14px; }
     :root { --brand-h: 40px; }
     .logo img { height: 36px; }
     .nav { gap: 52px; }
@@ -1729,7 +2616,25 @@ body.in-tg .lightbox-close { display: none; }
         padding-right: var(--pad);
     }
     .product-info-box { padding: 8px 0 56px; }
-    .screen-head, #cart-items-container, .checkout-container, #orders-container, .qr-container {
+
+    /* карточка товара как у Divinity: слева «M», справа крестик, кнопок разделов нет */
+    body[data-screen="product"] .logo { display: flex; }
+    body[data-screen="product"] .nav { display: none; }
+    body[data-screen="product"] .topbar-close {
+        order: 1;
+        margin-left: auto;
+        margin-right: -8px;
+    }
+
+    /* вместо точек под фото — миниатюры в правой колонке */
+    #product-screen .carousel-dots { display: none; }
+    .product-thumbs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 32px;
+    }
+    .screen-head, #cart-items-container, .checkout-container, #orders-container, .pay-container {
         padding-left: 16px;
         padding-right: 16px;
     }

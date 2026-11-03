@@ -1,10 +1,10 @@
 {
-  "payment_qr": ["assets/qr/1.webp", "assets/qr/2.webp"],
   "products": [
     {
       "id": 1,
-      "title": "Zip-Hoodie Angels Advise Collection Black",
+      "title": "\"Angel’s Advice Collection\" Zip-Hoodie Black",
       "price": 5990,
+      "weight": 900,
       "status": "sold_out",
       "sizes": ["S", "M", "L"],
       "images": [
@@ -19,8 +19,9 @@
     },
     {
       "id": 2,
-      "title": "Zip-Hoodie Angels Advise Collection Grey",
+      "title": "\"Angel’s Advice Collection\" Zip-Hoodie Grey",
       "price": 5990,
+      "weight": 900,
       "status": "sold_out",
       "sizes": ["S", "M", "L"],
       "images": [
@@ -34,26 +35,10 @@
       "desc": "Состав:\n100% хлопок, 480 г/м².\nРекомендации по уходу:\nСтирка: Стирать на изнанку. Предпочтительна ручная стирка;\nпри машинной — использовать только деликатный режим при температуре 30 °C. Избегать интенсивного отжима и высоких оборотов.\nГлажка: Гладить только с изнаночной стороны при низкой температуре. Не прикасаться утюгом к молнии."
     },
     {
-      "id": 3,
-      "title": "Longsleeve Harnessed Chaos Collection White",
-      "price": 2590,
-      "old_price": 3190,
-      "status": "preorder",
-      "sizes": ["S", "M", "L"],
-      "images": [
-        "assets/products/longsleeve-white/6.webp",
-        "assets/products/longsleeve-white/5.webp",
-        "assets/products/longsleeve-white/1.webp",
-        "assets/products/longsleeve-white/2.webp",
-        "assets/products/longsleeve-white/3.webp",
-        "assets/products/longsleeve-white/4.webp"
-      ],
-      "desc": "Состав:\n100% хлопок (кулирная гладь), 250 г/м².\nРекомендации по уходу:\nСтирка:\nСтирать наизнанку. Предпочтительна ручная стирка; при машинной — использовать только деликатный режим при температуре 30–40 °C. Допустим отжим на минимальных оборотах (400–600)\nГлажка:\nГладить только с изнаночной стороны при низкой или средней температуре"
-    },
-    {
       "id": 4,
-      "title": "Longsleeve Harnessed Chaos Collection Black",
+      "title": "\"Harnessed Chaos Collection\" Longsleeve Black",
       "price": 2590,
+      "weight": 350,
       "old_price": 3190,
       "status": "preorder",
       "sizes": ["S", "M", "L"],

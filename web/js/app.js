@@ -18,31 +18,39 @@ const STATUS = {
     in_stock: { order: 2, text: 'В наличии', css: 'in-stock' },
     sold_out: { order: 3, text: 'Нет в наличии', css: 'out' },
 };
-// Коллекции широкой версии каталога. Модель одна на коллекцию, а её цвета — это отдельные
-// товары из catalog.json (id), поэтому корзина, цены и заказы работают как раньше.
+// Коллекции широкой версии каталога: один блок — один товар из catalog.json (id), блоки в шахматном порядке.
+const ANGELS_ADVICE = {
+    name: 'Angel’s Advice collection',
+    text: 'Мое стремление, действие и творчество - подобно совету ангела, который наставляет меня на верный путь. Крик в неизвестность, с целью обрести эхо в лице тех, кто тоже хочет говорить',
+};
 const COLLECTIONS = [
     {
-        name: 'Angel’s Advice collection',
-        text: 'Мое стремление, действие и творчество - подобно совету ангела, который наставляет меня на верный путь. Крик в неизвестность, с целью обрести эхо в лице тех, кто тоже хочет говорить',
-        date: '06.10.25',
+        ...ANGELS_ADVICE,
+        text: 'Это был первый осязаемый  импульс. Одержимость вышла за пределы запечатанного короба. Идеи больше не вянут в моей голове, они касаются нас в зеркалах, гардеробах, глазах - жизни.',
+        date: '',
         photo: 'assets/img/collection-zip.webp',
         focus: '50% 100%', // какая часть фото остаётся в кадре — человек внизу снимка
-        title: 'Zip-Hoodie Angel’s Advice',
-        colors: [{ label: 'Black', id: 1 }, { label: 'Grey', id: 2 }],
+        id: 1,
+    },
+    {
+        ...ANGELS_ADVICE,
+        name: '', // название коллекции уже стоит у первой зипки
+        date: '06.10.25', // дата общая для обеих зипок, стоит у второй
+        photo: 'assets/img/collection-zip-grey.webp',
+        focus: '50% 100%',
+        id: 2,
     },
     {
         name: 'Without designer collection',
-        text: '',
+        text: 'Никто не сделает твою работу лучше чем ты сам. Without designers - это протест лично против тебя. Думаешь стоит передавать какому то «профессионалу» свои инструменты? Пренебрежение своим видением из за страха быть не понятым  или неуверенности в себе влечет еще большее разочарование. Do it yourself',
         date: '',
         photo: 'assets/img/collection-long.webp',
         focus: '50% 50%',
-        title: 'Longsleeve Harnessed Chaos',
-        colors: [{ label: 'Black', id: 4 }, { label: 'White', id: 3 }],
+        id: 4,
     },
 ];
-const collectionOf = (id) => COLLECTIONS.find((c) => c.colors.some((x) => x.id === id));
 const CHECKOUT_FIELDS = ['name', 'surname', 'patronymic', 'phone', 'telegram', 'email', 'comment', 'address'];
-const EMPTY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M8 11V9a1 1 0 0 1 2 0v2a1 1 0 0 1-2 0zm7 1a1 1 0 0 0 1-1V9a1 1 0 0 0-2 0v2a1 1 0 0 0 1 1zm-3 2a6.036 6.036 0 0 0-4.775 2.368 1 1 0 1 0 1.55 1.264 4 4 0 0 1 6.45 0 1 1 0 0 0 1.55-1.264A6.036 6.036 0 0 0 12 14zm11-2A11 11 0 1 1 12 1a11.013 11.013 0 0 1 11 11zm-2 0a9 9 0 1 0-9 9 9.01 9.01 0 0 0 9-9z"></path></svg>`;
+const CONSENT_FIELDS = ['consent', 'offer']; // галочки формы: согласие на обработку ПДн и принятие оферты
 
 // --- утилиты ---
 
@@ -64,8 +72,6 @@ const store = {
     },
 };
 
-const emptyMessage = (text) => `<div class="empty-cart-msg"><span>${text}</span>${EMPTY_ICON}</div>`;
-
 // --- состояние ---
 
 let products = [];
@@ -78,14 +84,15 @@ let historyStack = ['landing'];
 // К какому разделу шапки относится экран: кнопку своего раздела шапка не показывает.
 const SECTION = {
     landing: 'main', catalog: 'cloth', product: 'cloth', brand: 'about',
-    cart: 'cart', checkout: 'cart', qr: 'cart', orders: 'cart',
+    cart: 'cart', checkout: 'cart', payment: 'cart', orders: 'cart',
 };
 let customAlertCallback = null;
 let submitting = false;
 // Кто открыл сайт (GET api/me). В мини-аппе покупатель известен сразу, на сайте — после входа через Telegram.
 const IN_TG = Boolean(tg?.initData);
-let account = { loginEnabled: false, user: null };
+let account = { loginEnabled: false, botUsername: null, user: null };
 let accountReady = Promise.resolve();
+let catalogReady = Promise.resolve();
 
 function saveCart() {
     store.set(CART_KEY, cart);
@@ -106,14 +113,20 @@ function syncCart() {
 
 // --- навигация ---
 
+// Окна поверх экрана тоже лежат в истории (чтобы «назад» их закрывал), но экранами не являются.
+const OVERLAYS = new Set(['lightbox', 'custom-alert', 'tg-confirm']);
+// без findLast: его нет в старых iOS, а мини-апп открывается во встроенном браузере Telegram
+const currentScreen = () => [...historyStack].reverse().find((s) => !OVERLAYS.has(s)) || 'landing';
+
 // «Назад»: кнопка Telegram и крестик в карточке товара ведут на предыдущий экран.
 function goBack() {
     const current = historyStack[historyStack.length - 1];
     if (current === 'lightbox') closeLightbox();
     else if (current === 'custom-alert') closeCustomAlert();
+    else if (current === 'tg-confirm') closeTgConfirm();
     else if (historyStack.length > 1) {
         historyStack.pop();
-        renderScreenInternal(historyStack[historyStack.length - 1]);
+        renderScreenInternal(currentScreen(), true);
         haptic('light');
     }
 }
@@ -140,17 +153,27 @@ function resetTo(screenId) {
     renderScreenInternal(screenId);
 }
 
-function renderScreenInternal(screenId) {
+// Где был прокручен каждый экран, когда с него ушли: «назад» (крестик, кнопка Telegram)
+// возвращает на то же место — например, в каталоге к товару, который открывали.
+const scrollMemo = {};
+
+function renderScreenInternal(screenId, restoreScroll = false) {
     syncCart();
-    document.querySelectorAll('.screen').forEach((s) => s.classList.remove('active'));
+    closeBotAlert();
+    document.querySelectorAll('.screen').forEach((s) => {
+        if (s.classList.contains('active')) scrollMemo[s.id] = s.scrollTop;
+        s.classList.remove('active');
+    });
     const target = $(`${screenId}-screen`);
-    if (target) {
-        target.classList.add('active');
-        target.scrollTop = 0;
-    }
+    if (target) target.classList.add('active');
     document.body.dataset.screen = screenId;
     document.body.dataset.section = SECTION[screenId] || '';
+    if (screenId === 'brand') {
+        resetBrandSlide();
+        resetReel();
+    }
     syncBrandVideo();
+    syncReel();
     if (screenId === 'catalog') {
         renderCatalog();
         armCollectionHover();
@@ -158,7 +181,13 @@ function renderScreenInternal(screenId) {
     if (screenId === 'cart') renderCart();
     if (screenId === 'product' && currentProduct) updateButtonInterface();
     if (screenId === 'orders') fetchAndRenderOrders();
-    if (screenId === 'checkout') renderCheckoutGate();
+    if (screenId === 'checkout') renderCheckout();
+    if (screenId === 'payment') {
+        renderPayment();
+        resumePayPoll();
+    }
+    // после перерисовки содержимого, иначе каталог ещё пустой и прокрутка упрётся в верх
+    if (target) target.scrollTop = restoreScroll ? scrollMemo[target.id] || 0 : 0;
     updateBackButton();
 }
 
@@ -168,19 +197,300 @@ function renderScreenInternal(screenId) {
 const WIDE_MAIN = window.matchMedia('(min-width: 900px) and (min-aspect-ratio: 1/1)');
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
 
+// Положение листания: 0 — первый слайд, 1 — второй, дробное — между ними.
+// Колесо двигает цель, кадр плавно догоняет её; колесо стоит — слайды стоят.
+let brandPos = 0;
+let brandTarget = 0;
+let brandFrame = 0;
+
+const brandSlides = () => document.querySelectorAll('.brand-slide');
+const brandTexts = () => document.querySelectorAll('.brand-text-slide');
+const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
+
+// Слайд i виден, пока следующий не накрыл его целиком.
+const brandVisible = (i) => i - brandPos < 1 && brandPos - i < 1;
+
 function syncBrandVideo() {
-    const video = document.querySelector('.brand-video');
-    if (!video) return;
+    const slides = brandSlides();
+    if (!slides.length) return;
     const onAbout = historyStack[historyStack.length - 1] === 'brand';
-    if (onAbout && WIDE_MAIN.matches && !REDUCED_MOTION.matches) {
-        if (!video.getAttribute('src')) video.src = video.dataset.src;
-        video.play().catch(() => { /* автоплей запрещён — остаётся постер */ });
-    } else {
-        video.pause();
+    const show = onAbout && WIDE_MAIN.matches && !REDUCED_MOTION.matches;
+    slides.forEach((slide, i) => {
+        const video = slide.querySelector('.brand-video');
+        if (show && brandVisible(i)) {
+            if (!video.getAttribute('src')) video.src = video.dataset.src;
+            if (video.paused) video.play().catch(() => { /* автоплей запрещён — остаётся постер */ });
+        } else if (!video.paused) {
+            video.pause();
+        }
+    });
+    // остальные видео подгружаем заранее, когда первое уже можно смотреть, — чтобы не ждать при листании
+    const first = slides[0].querySelector('.brand-video');
+    if (show && !first.dataset.preloadArmed) {
+        first.dataset.preloadArmed = '1';
+        first.addEventListener('canplaythrough', () => {
+            slides.forEach((slide) => {
+                const v = slide.querySelector('.brand-video');
+                if (v.getAttribute('src')) return;
+                v.preload = 'auto';
+                v.src = v.dataset.src;
+            });
+        }, { once: true });
     }
 }
 
-WIDE_MAIN.addEventListener?.('change', syncBrandVideo);
+// Строки текста слайда (верх и низ относительно самого слайда) — по реальным переносам на экране.
+// Сбрасывается при смене размера окна и после загрузки шрифта.
+let brandLines = null;
+
+function measureBrandLines() {
+    const range = document.createRange();
+    brandLines = [...brandTexts()].map((text) => {
+        const base = text.getBoundingClientRect().top;
+        const rows = [];
+        const walker = document.createTreeWalker(text, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            range.selectNodeContents(node);
+            for (const r of range.getClientRects()) {
+                if (!r.width) continue;
+                const top = r.top - base;
+                const row = rows.find((x) => Math.abs(x.top - top) < 2);
+                if (row) row.bottom = Math.max(row.bottom, r.bottom - base);
+                else rows.push({ top, bottom: r.bottom - base });
+            }
+        }
+        return rows.sort((a, b) => a.top - b.top);
+    });
+}
+
+function resetBrandLines() {
+    brandLines = null;
+    if (historyStack[historyStack.length - 1] === 'brand') applyBrandPos();
+}
+
+window.addEventListener('resize', resetBrandLines);
+document.fonts?.ready.then(resetBrandLines);
+
+// Раскладывает слайды и текст по brandPos: следующий слайд выезжает снизу поверх предыдущего.
+// Текст меняется построчно вслед за верхним краем нового видео: край дошёл до низа строки —
+// эта строка уже из нового текста; так снизу вверх до первой строки (назад — в обратном порядке).
+function applyBrandPos() {
+    const slides = brandSlides();
+    slides.forEach((slide, i) => {
+        if (i === 0) return;
+        const k = clamp(i - brandPos, 0, 1); // 1 — ещё внизу, 0 — встал на место
+        slide.style.transform = `translate3d(0, ${k * 100}%, 0)`;
+        slide.style.visibility = k < 1 ? 'visible' : 'hidden';
+    });
+    const texts = brandTexts();
+    if (!WIDE_MAIN.matches) {
+        // узкий экран: виден только первый текст, видео нет
+        texts.forEach((text) => { text.style.clipPath = ''; text.style.visibility = ''; });
+        syncBrandVideo();
+        return;
+    }
+    if (!brandLines) measureBrandLines();
+    const media = document.querySelector('.brand-media').getBoundingClientRect();
+    // верхний край видео i на экране; у первого — «давно наверху», после последнего — «ещё не пришло»
+    const edge = (i) => {
+        if (i === 0) return -Infinity;
+        if (i >= slides.length) return Infinity;
+        return media.top + clamp(i - brandPos, 0, 1) * media.height;
+    };
+    texts.forEach((text, i) => {
+        const base = text.getBoundingClientRect().top;
+        const from = edge(i) - base;     // строки, до низа которых дошло видео i, — уже его
+        const to = edge(i + 1) - base;   // а те, до которых дошло следующее, — уже не его
+        const rows = brandLines[i] || [];
+        const shown = rows.map((r, n) => (r.bottom >= from && r.bottom < to ? n : -1)).filter((n) => n >= 0);
+        if (!shown.length) {
+            text.style.visibility = 'hidden';
+            return;
+        }
+        // границы обрезки — посередине между строками, чтобы не срезать хвосты букв
+        const a = shown[0], b = shown[shown.length - 1];
+        const top = a > 0 ? (rows[a - 1].bottom + rows[a].top) / 2 : -9999;
+        const bottom = b < rows.length - 1 ? (rows[b].bottom + rows[b + 1].top) / 2 : 9999;
+        text.style.visibility = 'visible';
+        text.style.clipPath = `polygon(-9999px ${top}px, 9999px ${top}px, 9999px ${bottom}px, -9999px ${bottom}px)`;
+    });
+    syncBrandVideo();
+}
+
+function brandTick() {
+    const d = brandTarget - brandPos;
+    brandPos = Math.abs(d) < 0.0005 ? brandTarget : brandPos + d * 0.2;
+    applyBrandPos();
+    brandFrame = brandPos === brandTarget ? 0 : requestAnimationFrame(brandTick);
+}
+
+// Мгновенно, без анимации: при входе в About всегда первый слайд.
+function resetBrandSlide() {
+    cancelAnimationFrame(brandFrame);
+    brandFrame = 0;
+    brandPos = brandTarget = 0;
+    applyBrandPos();
+}
+
+WIDE_MAIN.addEventListener?.('change', () => {
+    resetBrandSlide();
+    syncReel();
+});
+
+// Можно ли элементу внутри About ещё прокрутиться в эту сторону (длинный текст на невысоком экране).
+function canScrollInside(el, dy) {
+    for (; el && el.id !== 'brand-screen'; el = el.parentElement) {
+        if (el.scrollHeight <= el.clientHeight + 1) continue;
+        const oy = getComputedStyle(el).overflowY;
+        if (oy !== 'auto' && oy !== 'scroll') continue;
+        if (dy > 0 ? el.scrollTop + el.clientHeight < el.scrollHeight - 1 : el.scrollTop > 0) return true;
+    }
+    return false;
+}
+
+// Прокрутка на высоту экрана = один слайд целиком, как обычный скролл страницы.
+$('brand-screen')?.addEventListener('wheel', (e) => {
+    if (!WIDE_MAIN.matches || historyStack[historyStack.length - 1] !== 'brand') return;
+    if (canScrollInside(e.target, e.deltaY)) return;
+    const media = document.querySelector('.brand-media');
+    const height = media?.clientHeight || window.innerHeight;
+    const px = e.deltaY * (e.deltaMode === 1 ? 40 : e.deltaMode === 2 ? height : 1);
+    brandTarget = clamp(brandTarget + px / height, 0, brandSlides().length - 1);
+    if (!brandFrame) brandFrame = requestAnimationFrame(brandTick);
+}, { passive: true });
+
+
+// Мини-апп: пока палец на шторке каталога или на видео About, свайп вниз не сворачивает приложение —
+// иначе чуть наклонный горизонтальный свайп Telegram принимает за «свернуть». Отпустил — снова можно.
+function holdTgSwipes(hold) {
+    if (!IN_TG) return;
+    if (hold) tg?.disableVerticalSwipes?.();
+    else tg?.enableVerticalSwipes?.();
+}
+
+// --- видео в About на телефоне ---
+
+// Узкий экран: видео на всю ширину, одно за другим по кругу; листаются и свайпом.
+// Кружочки снизу показываются на 2 с при открытии About и при каждой смене видео.
+let reelIdx = 0;
+let reelDotsTimer = 0;
+const reelVideos = () => document.querySelectorAll('.brand-reel-video');
+
+function showReelDots() {
+    const dots = document.querySelector('.brand-reel-dots');
+    if (!dots) return;
+    dots.querySelectorAll('span').forEach((d, i) => d.classList.toggle('active', i === reelIdx));
+    dots.classList.add('show');
+    clearTimeout(reelDotsTimer);
+    reelDotsTimer = setTimeout(() => dots.classList.remove('show'), 2000);
+}
+
+function placeReel(animate = true, dragPx = 0) {
+    const track = document.querySelector('.brand-reel-track');
+    if (!track) return;
+    track.style.transition = animate ? '' : 'none';
+    track.style.transform = `translate3d(calc(${-reelIdx * 100}% + ${dragPx}px), 0, 0)`;
+}
+
+// Играет только видео на экране и только когда About открыт на узком экране.
+function syncReel() {
+    const videos = reelVideos();
+    if (!videos.length) return;
+    const onAbout = historyStack[historyStack.length - 1] === 'brand';
+    const show = onAbout && !WIDE_MAIN.matches && !REDUCED_MOTION.matches;
+    videos.forEach((video, i) => {
+        if (show && i === reelIdx) {
+            if (!video.getAttribute('src')) video.src = video.dataset.src;
+            if (video.paused) video.play().catch(() => { /* автоплей запрещён — остаётся постер */ });
+        } else if (!video.paused) {
+            video.pause();
+        }
+    });
+    // следующее подгружаем заранее, когда текущее уже можно смотреть, — чтобы не ждать при смене
+    const cur = videos[reelIdx];
+    if (show && !cur.dataset.preloadArmed) {
+        cur.dataset.preloadArmed = '1';
+        cur.addEventListener('canplaythrough', () => {
+            const next = videos[(reelIdx + 1) % videos.length];
+            if (!next.getAttribute('src')) {
+                next.preload = 'auto';
+                next.src = next.dataset.src;
+            }
+        }, { once: true });
+    }
+}
+
+function goReel(idx) {
+    const videos = reelVideos();
+    if (!videos.length) return;
+    const n = videos.length;
+    reelIdx = ((idx % n) + n) % n;
+    placeReel(true);
+    const video = videos[reelIdx];
+    if (video.getAttribute('src')) video.currentTime = 0; // каждое видео — с начала
+    syncReel();
+    showReelDots();
+}
+
+// При входе в About — первое видео с начала, без анимации.
+function resetReel() {
+    const videos = reelVideos();
+    if (!videos.length || WIDE_MAIN.matches) return;
+    reelIdx = 0;
+    placeReel(false);
+    if (videos[0].getAttribute('src')) videos[0].currentTime = 0;
+    showReelDots();
+}
+
+// Видео закончилось — следующее (после последнего — снова первое).
+reelVideos().forEach((video, i) => video.addEventListener('ended', () => {
+    if (i === reelIdx) goReel(reelIdx + 1);
+}));
+
+// Свайп по видео: тянется за пальцем, отпустил дальше чем на 1/5 ширины или резко — соседнее видео.
+// Вертикальное движение отдаём прокрутке страницы (touch-action: pan-y в CSS).
+(() => {
+    const reel = document.querySelector('.brand-reel');
+    if (!reel) return;
+    let start = null;
+    reel.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        start = { x: e.clientX, y: e.clientY, t: performance.now(), drag: false, id: e.pointerId };
+        holdTgSwipes(true);
+    });
+    reel.addEventListener('pointermove', (e) => {
+        if (!start || e.pointerId !== start.id) return;
+        const dx = e.clientX - start.x;
+        if (!start.drag) {
+            if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(e.clientY - start.y)) return;
+            start.drag = true;
+            reel.setPointerCapture?.(e.pointerId);
+        }
+        const last = reelVideos().length - 1;
+        // у крайних видео — упругое сопротивление
+        const edge = (reelIdx === 0 && dx > 0) || (reelIdx === last && dx < 0);
+        placeReel(false, edge ? dx / 3 : dx);
+    });
+    const end = (e) => {
+        if (!start || e.pointerId !== start.id) return;
+        const dx = e.clientX - start.x;
+        const fast = Math.abs(dx) > 30 && performance.now() - start.t < 250;
+        const wasDrag = start.drag;
+        start = null;
+        holdTgSwipes(false);
+        if (!wasDrag) return;
+        const last = reelVideos().length - 1;
+        const dir = Math.abs(dx) > reel.clientWidth / 5 || fast ? -Math.sign(dx) : 0;
+        const next = reelIdx + dir;
+        if (dir && next >= 0 && next <= last) goReel(next);
+        else placeReel(true);
+    };
+    reel.addEventListener('pointerup', end);
+    reel.addEventListener('pointercancel', (e) => {
+        if (start && e.pointerId === start.id) { start = null; placeReel(true); holdTgSwipes(false); }
+    });
+})();
+
 
 // --- модальное уведомление ---
 
@@ -215,7 +525,7 @@ async function loadCatalog() {
         if (!response.ok) throw new Error(response.status);
         const data = await response.json();
         products = data.products.sort((a, b) => STATUS[a.status].order - STATUS[b.status].order);
-        renderScreenInternal(historyStack[historyStack.length - 1]);
+        renderScreenInternal(currentScreen());
     } catch {
         grid.innerHTML = `<div class="loading-msg">Не удалось загрузить каталог.
             <button class="main-action-btn" onclick="loadCatalog()">Повторить</button></div>`;
@@ -268,24 +578,103 @@ function armCollectionHover() {
 }
 
 // Блок коллекции: слева название/описание/дата, справа фото (через раз — наоборот).
-// При наведении фото сменяется студийным фото чёрного товара, клик по фото открывает карточку.
+// При наведении фото сменяется студийным фото товара, клик по фото открывает карточку.
 function renderCollections() {
     $('collections').innerHTML = COLLECTIONS.map((c, i) => {
-        const black = products.find((p) => p.id === c.colors[0].id);
-        if (!black) return '';
+        const p = products.find((x) => x.id === c.id);
+        if (!p) return '';
         return `
             <section class="collection${i % 2 ? ' reverse' : ''}">
                 <div class="collection-text">
-                    <h2 class="collection-name">${esc(c.name)}</h2>
+                    ${c.name ? `<h2 class="collection-name">${esc(c.name)}</h2>` : '<div></div>'}
                     ${c.text ? `<p class="collection-desc">${esc(c.text)}</p>` : '<div></div>'}
                     ${c.date ? `<div class="collection-date">${esc(c.date)}</div>` : '<div></div>'}
                 </div>
-                <button type="button" class="collection-photo" onclick="openProductPage(${black.id})" aria-label="${esc(c.title)}">
+                <button type="button" class="collection-photo" onclick="openProductPage(${p.id})" aria-label="${esc(p.title)}">
                     <img class="collection-shot" src="${esc(c.photo)}" alt="" style="object-position: ${esc(c.focus || '50% 50%')}">
-                    <img class="collection-studio" src="${esc(black.images[0])}" alt="">
+                    <img class="collection-studio" src="${esc(p.images[0])}" alt="">
                 </button>
             </section>`;
     }).join('');
+    renderCurtains();
+}
+
+// Узкий экран: фото и описание коллекции на одном месте, между ними — шторка (вертикальная линия).
+// Её тянут пальцем в любую сторону: до упора — только фото или только текст. Фото — на 75% ширины,
+// в шахматном порядке: слева, потом справа. Тап по фото открывает товар; «Tap to view» — подсказка об этом.
+function renderCurtains() {
+    $('curtains').innerHTML = COLLECTIONS.map((c, i) => {
+        const p = products.find((x) => x.id === c.id);
+        if (!p) return '';
+        const reverse = i % 2 === 1;
+        const text = c.curtainText ?? c.text;
+        return `
+            <section class="curtain-group">
+                ${c.name ? `<h2 class="curtain-name">${esc(c.name)}</h2>` : ''}
+                <div class="curtain${reverse ? ' reverse' : ''}" data-id="${p.id}" style="--pos: ${reverse ? 25 : 75}%">
+                    <img class="curtain-photo" src="${esc(c.photo)}" alt="${esc(p.title)}" style="object-position: ${esc(c.focus || '50% 50%')}">
+                    <div class="curtain-text" aria-hidden="true">${text ? `<p>${esc(text)}</p>` : ''}</div>
+                    ${c.date ? `<div class="curtain-date"><span>${esc(c.date)}</span></div>` : ''}
+                    <div class="curtain-line" aria-hidden="true"><span class="curtain-grip"></span></div>
+                </div>
+                ${i === 0 ? '<div class="curtain-hint" aria-hidden="true">Tap<br>to<br>view</div>' : ''}
+            </section>`;
+    }).join('');
+}
+
+// Шторка: горизонтальное движение пальца двигает линию (от того места, где она стояла),
+// вертикальное — прокрутка страницы (touch-action: pan-y в CSS). Тап без движения по фото — карточка товара.
+// По какую сторону линии точка x — фото (у обычного блока фото слева, у зеркального справа).
+function curtainOnPhoto(el, clientX) {
+    const rect = el.getBoundingClientRect();
+    const x = (clientX - rect.left) / rect.width;
+    const pos = parseFloat(el.style.getPropertyValue('--pos')) / 100;
+    return el.classList.contains('reverse') ? x > pos : x < pos;
+}
+
+function bindCurtains() {
+    const box = $('curtains');
+    let drag = null;
+    box.addEventListener('pointerdown', (e) => {
+        const el = e.target.closest('.curtain');
+        if (!el || (e.pointerType === 'mouse' && e.button !== 0)) return;
+        const pos = parseFloat(el.style.getPropertyValue('--pos')) / 100;
+        drag = { el, id: e.pointerId, x: e.clientX, y: e.clientY, pos, moved: false };
+        holdTgSwipes(true);
+    });
+    // мышь над фото — курсор «палец»: фото открывает товар (над текстом и линией — обычный)
+    box.addEventListener('pointermove', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        const el = e.target.closest('.curtain');
+        if (el) el.classList.toggle('over-photo', curtainOnPhoto(el, e.clientX));
+    });
+    box.addEventListener('pointerout', (e) => {
+        const el = e.target.closest('.curtain');
+        if (el && !el.contains(e.relatedTarget)) el.classList.remove('over-photo');
+    });
+    box.addEventListener('pointermove', (e) => {
+        if (!drag || e.pointerId !== drag.id) return;
+        const dx = e.clientX - drag.x;
+        if (!drag.moved) {
+            if (Math.abs(dx) < 6 || Math.abs(dx) < Math.abs(e.clientY - drag.y)) return;
+            drag.moved = true;
+            drag.el.classList.add('dragging');
+            box.setPointerCapture?.(e.pointerId);
+        }
+        const pos = clamp(drag.pos + dx / drag.el.clientWidth, 0, 1);
+        drag.el.style.setProperty('--pos', `${(pos * 100).toFixed(2)}%`);
+    });
+    const end = (e, tap) => {
+        if (!drag || e.pointerId !== drag.id) return;
+        const { el, moved } = drag;
+        drag = null;
+        holdTgSwipes(false);
+        el.classList.remove('dragging');
+        if (moved || !tap) return;
+        if (curtainOnPhoto(el, e.clientX)) openProductPage(Number(el.dataset.id));
+    };
+    box.addEventListener('pointerup', (e) => end(e, true));
+    box.addEventListener('pointercancel', (e) => end(e, false));
 }
 
 // size — когда товар открывают из корзины: сразу выбран размер, который лежит в корзине.
@@ -296,33 +685,15 @@ function openProductPage(id, size = null) {
     navigate('product');
 }
 
-// Заполняет карточку товаром id. Смена цвета на ПК вызывает её же — без новой записи в истории.
+// Заполняет карточку товаром id.
 function fillProduct(id, size = null) {
     currentProduct = products.find((p) => p.id === id);
     if (!currentProduct) return false;
     const p = currentProduct;
-    const coll = collectionOf(p.id);
     selectedSize = p.status !== 'sold_out' && p.sizes.includes(size) ? size : null;
     currentSlideIdx = 0;
 
-    // на телефоне — полное название товара, на ПК — название модели (цвет выбирается кнопками)
-    $('p-title').innerHTML = `<span class="title-narrow">${esc(p.title)}</span><span class="title-wide">${esc(coll ? coll.title : p.title)}</span>`;
-
-    const colors = $('color-selector');
-    colors.innerHTML = '';
-    $('color-section').hidden = !coll;
-    coll?.colors.forEach((c) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = `size-chip color-chip${c.id === p.id ? ' selected' : ''}`;
-        btn.innerText = c.label;
-        btn.onclick = () => {
-            if (c.id === currentProduct.id) return;
-            fillProduct(c.id, selectedSize);
-            haptic('light');
-        };
-        colors.appendChild(btn);
-    });
+    $('p-title').innerText = p.title;
     $('p-desc').innerHTML = ['Состав:', 'Рекомендации по уходу:', 'Стирка:', 'Глажка:']
         .reduce((html, h) => html.replaceAll(h, `<span class="desc-header">${h}</span>`), esc(p.desc))
         .replace(/\n/g, '<br>');
@@ -344,6 +715,18 @@ function fillProduct(id, size = null) {
         dot.className = `dot ${idx === 0 ? 'active' : ''}`;
         dot.onclick = (e) => { e.stopPropagation(); setSlide(idx); };
         dots.appendChild(dot);
+    });
+    // миниатюры (на ПК): клик переключает большое фото
+    const thumbs = $('product-thumbs');
+    thumbs.innerHTML = '';
+    p.images.forEach((src, idx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = `product-thumb${idx === 0 ? ' active' : ''}`;
+        btn.setAttribute('aria-label', `Фото ${idx + 1}`);
+        btn.innerHTML = `<img src="${esc(src)}" alt="">`;
+        btn.onclick = () => setSlide(idx);
+        thumbs.appendChild(btn);
     });
     updateCarouselPosition(false);
 
@@ -448,7 +831,9 @@ function updateCarouselPosition(animate = true) {
 }
 
 function updateDots() {
-    document.querySelectorAll('.carousel-dots .dot').forEach((dot, idx) => dot.classList.toggle('active', idx === currentSlideIdx));
+    document.querySelectorAll('.carousel-dots .dot, .product-thumb').forEach((el) => {
+        el.classList.toggle('active', [...el.parentElement.children].indexOf(el) === currentSlideIdx);
+    });
 }
 
 function openLightbox(index) {
@@ -899,13 +1284,6 @@ function changeQty(idx, delta) {
     if (cart[idx] && changeItemQty(cart[idx], delta)) renderCart();
 }
 
-function deleteItem(idx) {
-    cart.splice(idx, 1);
-    saveCart();
-    renderCart();
-    updateCartBadge();
-}
-
 function openCartItem(idx) {
     if (cart[idx]) openProductPage(cart[idx].id, cart[idx].size);
 }
@@ -918,15 +1296,21 @@ function updateCartBadge() {
 function renderCart() {
     const container = $('cart-items-container');
     const checkoutBtn = $('checkout-main-btn');
-    const total = cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
-    checkoutBtn.disabled = cart.length === 0;
-    checkoutBtn.classList.toggle('disabled', cart.length === 0);
+    const total = goodsTotal();
+    const off = cart.length === 0 || !checkoutCfg.enabled;
+    checkoutBtn.disabled = off;
+    checkoutBtn.classList.toggle('disabled', off);
+    renderCheckoutNote();
     $('cart-total-price').innerText = rub(total);
     $('cart-screen').classList.toggle('is-empty', !cart.length);
 
     if (!cart.length) {
-        // пустая корзина: вместо списка — кнопка в каталог
-        container.innerHTML = '<div class="cart-empty"><button type="button" class="cart-add" onclick="navigate(\'catalog\')">Add</button></div>';
+        // пустая корзина — как пустые заказы: надпись на той же высоте и ссылка в каталог под ней
+        container.innerHTML = `
+            <div class="cart-empty"><div class="empty-state">
+                <p class="orders-empty-title">Корзина пуста</p>
+                <div class="empty-sub"><p class="orders-empty-hint"><span class="empty-accent">Magazine Morelufs в <button type="button" class="text-link" onclick="navigate('catalog')">cloth</button></span>, ознакомьтесь.</p></div>
+            </div></div>`;
         return;
     }
     container.innerHTML = cart.map((item, idx) => `
@@ -943,33 +1327,503 @@ function renderCart() {
                     <span>${item.quantity}</span>
                     <button onclick="changeQty(${idx}, 1)">+</button>
                 </div>
-                <button class="delete-item-btn" onclick="deleteItem(${idx})">Удалить</button>
             </div>
         </div>`).join('');
 }
 
 // --- оформление заказа ---
 
+// Что можно оформить (GET api/checkout): без оплаты или без доставки сервер выключает оформление целиком.
+let checkoutCfg = { loaded: false, failed: false, enabled: false, delivery: { cdek: false, pochta: false }, message: null };
+let checkoutReady = Promise.resolve();
+const CHECKOUT_FAILED = 'Не удалось загрузить способы доставки';
+
+async function loadCheckoutConfig() {
+    try {
+        const response = await fetch('api/checkout');
+        const data = await response.json();
+        if (!response.ok || !data.ok) throw new Error(response.status);
+        checkoutCfg = {
+            loaded: true,
+            failed: false,
+            enabled: Boolean(data.enabled),
+            delivery: { cdek: Boolean(data.delivery?.cdek), pochta: Boolean(data.delivery?.pochta) },
+            message: data.message || null,
+        };
+    } catch {
+        // без настроек не знаем, какие службы работают, — оформлять нельзя, но даём повторить
+        checkoutCfg = { loaded: true, failed: true, enabled: false, delivery: { cdek: false, pochta: false }, message: CHECKOUT_FAILED };
+    }
+    const screen = currentScreen();
+    if (screen === 'cart') renderCart();
+    if (screen === 'checkout') renderCheckout();
+}
+
+function retryCheckoutConfig() {
+    checkoutReady = loadCheckoutConfig();
+}
+
+const checkoutOffText = () => checkoutCfg.message || 'Оформление заказов временно недоступно. Напишите нам в Telegram @mngMorelufs.';
+
+function renderCheckoutNote() {
+    const note = $('checkout-note');
+    const show = checkoutCfg.loaded && !checkoutCfg.enabled && cart.length > 0;
+    note.hidden = !show;
+    if (!show) return;
+    note.innerHTML = esc(checkoutOffText())
+        + (checkoutCfg.failed ? ' <button type="button" class="text-link" onclick="retryCheckoutConfig()">Повторить</button>' : '');
+}
+
+const goodsTotal = () => cart.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+// --- доставка ---
+// Стоимость считает только сервер (POST api/delivery/quote); ответ привязан к ключу «корзина + способ + пункт/адрес»:
+// поменялось что-то из этого — расчёт устарел и кнопка оплаты гаснет до нового.
+
+const POINTS_PAGE = 30;
+let delivery = {
+    method: 'cdek',
+    city: null, // { code, name, region }
+    point: null, // { code, name, address, work_time }
+    pochtaQuotedFor: '', // адрес, для которого Почта уже считала: при возврате пересчитываем сами
+    quote: null, // ответ сервера + key
+};
+let quoteState = { loading: false, error: '', seq: 0 };
+const pointsCache = new Map(); // код города → список ПВЗ (на время открытой страницы)
+let pointsView = { list: [], limit: POINTS_PAGE, loading: false, error: '' };
+let citySuggest = { items: [], active: -1, seq: 0, timer: 0 };
+
+const deliveryMethod = () => document.querySelector('input[name="delivery-method"]:checked')?.value || 'cdek';
+const cartPayload = () => cart.map(({ id, size, quantity }) => ({ id, size, quantity }));
+
+// Поля доставки для запроса — те же для расчёта и для заказа.
+function deliveryPayload() {
+    if (delivery.method === 'pochta') return { delivery: 'pochta', address: $('checkout-address').value.trim() };
+    return { delivery: 'cdek', cdek_city_code: delivery.city?.code ?? null, cdek_point: delivery.point?.code ?? null };
+}
+
+function deliveryComplete() {
+    const d = deliveryPayload();
+    return d.delivery === 'pochta' ? Boolean(d.address) : Boolean(d.cdek_city_code && d.cdek_point);
+}
+
+const quoteKey = () => JSON.stringify([cartPayload(), deliveryPayload()]);
+const quoteValid = () => Boolean(delivery.quote && delivery.quote.key === quoteKey());
+
+function daysText(min, max) {
+    if (min && max && min !== max) return `${min}–${max} дн.`;
+    return min || max ? `${min || max} дн.` : '';
+}
+
+async function requestQuote() {
+    if (!cart.length || !deliveryComplete() || !checkoutCfg.enabled) return false;
+    const key = quoteKey();
+    const seq = ++quoteState.seq;
+    quoteState = { loading: true, error: '', seq };
+    renderDelivery();
+    try {
+        const response = await fetch('api/delivery/quote', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cart: cartPayload(), ...deliveryPayload() }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (seq !== quoteState.seq) return false; // пока считали, покупатель уже выбрал другое
+        if (!response.ok || !data.ok) throw new Error(data.description || `Не удалось рассчитать доставку. Код: ${response.status}`);
+        delivery.quote = { ...data, key };
+        if (delivery.method === 'pochta') delivery.pochtaQuotedFor = $('checkout-address').value.trim();
+        quoteState = { loading: false, error: '', seq };
+        saveCheckout();
+        return true;
+    } catch (error) {
+        if (seq !== quoteState.seq) return false;
+        delivery.quote = null;
+        quoteState = { loading: false, error: error instanceof TypeError ? 'Нет связи с сервером. Попробуйте ещё раз.' : error.message, seq };
+        return false;
+    } finally {
+        if (seq === quoteState.seq) renderDelivery();
+    }
+}
+
+// Пересчёт без участия покупателя: при входе в оформление, после смены корзины или способа.
+// Адрес Почты пересчитываем сами, только если его уже считали, — иначе ждём кнопку «Рассчитать».
+function autoQuote() {
+    if (quoteValid() || quoteState.loading || !deliveryComplete()) return;
+    if (delivery.method === 'pochta' && $('checkout-address').value.trim() !== delivery.pochtaQuotedFor) return;
+    requestQuote();
+}
+
+// Нужен перед отправкой заказа: после возврата из Telegram расчёт мог ещё не прийти.
+async function ensureQuote() {
+    if (quoteValid()) return true;
+    return requestQuote();
+}
+
+// Выбор способа, видимость полей и итог — по текущему состоянию.
+function renderDelivery() {
+    const method = delivery.method;
+    $('cdek-fields').hidden = method !== 'cdek';
+    $('pochta-fields').hidden = method !== 'pochta';
+
+    const cdek = method === 'cdek';
+    $('cdek-city').value ||= delivery.city?.name || '';
+    $('cdek-point-card').hidden = !(cdek && delivery.point);
+    $('cdek-points').hidden = !(cdek && delivery.city && !delivery.point);
+    if (cdek && delivery.point) {
+        const p = delivery.point;
+        $('cdek-point-card').innerHTML = `
+            <div class="point-card-head">
+                <span class="point-card-name">${esc(p.name)}</span>
+                <button type="button" class="text-link" onclick="changePoint()">Изменить</button>
+            </div>
+            <div class="point-card-addr">${esc(p.address)}</div>
+            ${p.work_time ? `<div class="point-card-time">${esc(p.work_time)}</div>` : ''}`;
+    }
+
+    const valid = quoteValid();
+    const q = valid ? delivery.quote : null;
+    const box = $('delivery-quote');
+    box.hidden = !(q || quoteState.loading);
+    if (quoteState.loading) {
+        box.innerHTML = '<div class="dq-loading">Рассчитываем доставку…</div>';
+    } else if (q) {
+        const days = daysText(q.days_min, q.days_max);
+        let addr = '';
+        if (method === 'pochta' && q.address) {
+            const index = String(q.address).match(/\b\d{6}\b/)?.[0];
+            addr = `<div class="dq-addr">${index ? `Получение в отделении ${esc(index)}<br>` : ''}<span>${esc(q.address)}</span></div>`;
+        }
+        box.innerHTML = `<div class="dq-line"><span>${method === 'pochta' ? 'Почта России' : 'СДЭК'}${days ? `, ${esc(days)}` : ''}</span><b>${rub(q.delivery_cost)}</b></div>${addr}`;
+    }
+    const err = quoteState.error || pointsView.error;
+    $('delivery-error').hidden = !err;
+    $('delivery-error').textContent = err;
+    $('pochta-quote-btn').disabled = quoteState.loading || !$('checkout-address').value.trim();
+    $('pochta-quote-btn').innerText = quoteState.loading && method === 'pochta' ? 'Считаем…' : 'Рассчитать';
+
+    $('total-goods').innerText = rub(q ? q.goods_total : goodsTotal());
+    $('total-delivery').innerText = q ? rub(q.delivery_cost) : quoteState.loading ? '…' : '—';
+    $('total-days').innerText = q && daysText(q.days_min, q.days_max) ? ` (${daysText(q.days_min, q.days_max)})` : '';
+    $('total-sum').innerText = q ? rub(q.total) : '—';
+    syncSubmit();
+}
+
+function renderCheckout() {
+    const on = checkoutCfg.enabled;
+    $('checkout-form').hidden = !on;
+    const off = $('checkout-off');
+    off.hidden = on;
+    if (!on) {
+        off.innerHTML = !checkoutCfg.loaded
+            ? '<p class="checkout-off-text">Загрузка…</p>'
+            : `<p class="checkout-off-text">${esc(checkoutOffText())}</p>`
+              + (checkoutCfg.failed
+                  ? '<button type="button" class="main-action-btn checkout-off-btn" onclick="retryCheckoutConfig()">Повторить</button>'
+                  : '<button type="button" class="order-btn checkout-off-btn" onclick="resetTo(\'catalog\')">В каталог</button>');
+        return;
+    }
+    // недоступную службу не показываем; сохранённый выбор, ставший недоступным, — на первую доступную
+    document.querySelectorAll('.radio-label[data-method]').forEach((label) => {
+        label.hidden = !checkoutCfg.delivery[label.dataset.method];
+    });
+    if (!checkoutCfg.delivery[delivery.method]) {
+        const first = ['cdek', 'pochta'].find((m) => checkoutCfg.delivery[m]);
+        const radio = document.querySelector(`input[name="delivery-method"][value="${first}"]`);
+        if (radio) radio.checked = true;
+        delivery.method = first;
+    }
+    if (delivery.method === 'cdek' && delivery.city && !delivery.point) showPoints();
+    renderDelivery();
+    autoQuote();
+}
+
+function onMethodChange() {
+    delivery.method = deliveryMethod();
+    quoteState = { loading: false, error: '', seq: quoteState.seq + 1 }; // ответ по прежнему способу уже не нужен
+    pointsView.error = '';
+    saveCheckout();
+    if (delivery.method === 'cdek' && delivery.city && !delivery.point) showPoints();
+    renderDelivery();
+    autoQuote();
+}
+
+// --- СДЭК: город с подсказками ---
+
+function setCityListOpen(open) {
+    $('cdek-city-list').hidden = !open;
+    $('cdek-city').setAttribute('aria-expanded', String(open));
+    if (!open) $('cdek-city').removeAttribute('aria-activedescendant');
+}
+
+function renderCityList() {
+    const list = $('cdek-city-list');
+    const { items, active } = citySuggest;
+    if (items === null) {
+        list.innerHTML = '<li class="suggest-empty" role="option" aria-disabled="true">Город не найден</li>';
+    } else {
+        list.innerHTML = items.map((c, i) => `
+            <li id="city-opt-${i}" class="suggest-item${i === active ? ' active' : ''}" role="option" aria-selected="${i === active}" data-idx="${i}">
+                <span class="suggest-name">${esc(c.name)}</span>${c.region ? `<span class="suggest-region">${esc(c.region)}</span>` : ''}
+            </li>`).join('');
+    }
+    const input = $('cdek-city');
+    if (active >= 0) input.setAttribute('aria-activedescendant', `city-opt-${active}`);
+    else input.removeAttribute('aria-activedescendant');
+    $(`city-opt-${active}`)?.scrollIntoView({ block: 'nearest' });
+    setCityListOpen(items === null || items.length > 0);
+}
+
+async function fetchCities(q) {
+    const seq = ++citySuggest.seq;
+    try {
+        const response = await fetch(`api/delivery/cdek/cities?q=${encodeURIComponent(q)}`);
+        const data = await response.json().catch(() => ({}));
+        if (seq !== citySuggest.seq) return;
+        if (!response.ok || !data.ok) throw new Error(data.description || 'Не удалось найти город. Попробуйте ещё раз.');
+        const cities = Array.isArray(data.cities) ? data.cities : [];
+        citySuggest.items = cities.length ? cities : null;
+        citySuggest.active = cities.length ? 0 : -1;
+        pointsView.error = '';
+        if (document.activeElement === $('cdek-city')) renderCityList();
+    } catch (error) {
+        if (seq !== citySuggest.seq) return;
+        citySuggest.items = [];
+        setCityListOpen(false);
+        pointsView.error = error instanceof TypeError ? 'Нет связи с сервером. Попробуйте ещё раз.' : error.message;
+    }
+    renderDelivery();
+}
+
+function onCityInput() {
+    const q = $('cdek-city').value.trim();
+    // текст изменили после выбора — прежний город и пункт уже не подходят
+    if (delivery.city && q !== delivery.city.name) {
+        delivery.city = null;
+        delivery.point = null;
+        saveCheckout();
+        renderDelivery();
+    }
+    clearTimeout(citySuggest.timer);
+    if (q.length < 2) {
+        citySuggest.seq++;
+        citySuggest.items = [];
+        setCityListOpen(false);
+        return;
+    }
+    citySuggest.timer = setTimeout(() => fetchCities(q), 300);
+}
+
+function onCityKey(e) {
+    const { items } = citySuggest;
+    const open = !$('cdek-city-list').hidden && Array.isArray(items) && items.length;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (!open) return;
+        e.preventDefault();
+        const n = items.length;
+        citySuggest.active = (citySuggest.active + (e.key === 'ArrowDown' ? 1 : -1) + n) % n;
+        renderCityList();
+    } else if (e.key === 'Enter') {
+        if (!open) return;
+        e.preventDefault();
+        selectCity(items[Math.max(citySuggest.active, 0)]);
+    } else if (e.key === 'Escape') {
+        if ($('cdek-city-list').hidden) return;
+        e.stopPropagation();
+        setCityListOpen(false);
+    }
+}
+
+function selectCity(city) {
+    if (!city) return;
+    clearTimeout(citySuggest.timer);
+    citySuggest.seq++;
+    setCityListOpen(false);
+    const same = delivery.city?.code === city.code;
+    delivery.city = { code: city.code, name: city.name, region: city.region || '' };
+    if (!same) delivery.point = null;
+    $('cdek-city').value = city.name;
+    $('cdek-point-filter').value = '';
+    saveCheckout();
+    haptic('light');
+    if (!delivery.point) showPoints();
+    renderDelivery();
+    autoQuote();
+}
+
+// --- СДЭК: пункты выдачи ---
+
+async function showPoints() {
+    const city = delivery.city;
+    if (!city) return;
+    pointsView.limit = POINTS_PAGE;
+    if (pointsCache.has(city.code)) {
+        pointsView = { list: pointsCache.get(city.code), limit: POINTS_PAGE, loading: false, error: '' };
+        renderPoints();
+        return;
+    }
+    pointsView = { list: [], limit: POINTS_PAGE, loading: true, error: '' };
+    renderPoints();
+    try {
+        const response = await fetch(`api/delivery/cdek/points?city=${encodeURIComponent(city.code)}`);
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) throw new Error(data.description || 'Не удалось загрузить пункты выдачи. Попробуйте ещё раз.');
+        const list = Array.isArray(data.points) ? data.points : [];
+        pointsCache.set(city.code, list);
+        if (delivery.city?.code !== city.code) return;
+        pointsView = { list, limit: POINTS_PAGE, loading: false, error: '' };
+    } catch (error) {
+        if (delivery.city?.code !== city.code) return;
+        pointsView = { list: [], limit: POINTS_PAGE, loading: false, error: error instanceof TypeError ? 'Нет связи с сервером. Попробуйте ещё раз.' : error.message };
+    }
+    renderPoints();
+    renderDelivery();
+}
+
+function filteredPoints() {
+    const words = $('cdek-point-filter').value.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return pointsView.list;
+    return pointsView.list.filter((p) => {
+        const text = `${p.name} ${p.address}`.toLowerCase();
+        return words.every((w) => text.includes(w));
+    });
+}
+
+function renderPoints() {
+    const list = $('cdek-point-list');
+    const count = $('cdek-point-count');
+    const more = $('cdek-point-more');
+    if (pointsView.loading) {
+        count.innerText = 'Загружаем пункты выдачи…';
+        list.innerHTML = '';
+        more.hidden = true;
+        return;
+    }
+    const all = filteredPoints();
+    const shown = all.slice(0, pointsView.limit);
+    if (!pointsView.list.length) count.innerText = pointsView.error ? '' : 'В этом городе нет пунктов выдачи СДЭК. Выберите соседний город.';
+    else if (!all.length) count.innerText = 'Ничего не нашлось. Попробуйте другую улицу.';
+    else count.innerText = all.length > shown.length ? `Пункты выдачи: ${shown.length} из ${all.length}` : `Пункты выдачи: ${all.length}`;
+    list.innerHTML = shown.map((p) => `
+        <li><button type="button" class="point-item" data-code="${esc(p.code)}">
+            <span class="point-item-addr">${esc(p.address)}</span>
+            <span class="point-item-meta">${esc(p.name)}${p.work_time ? `<br>${esc(p.work_time)}` : ''}</span>
+        </button></li>`).join('');
+    more.hidden = all.length <= shown.length;
+}
+
+function selectPoint(code) {
+    const p = pointsView.list.find((x) => String(x.code) === String(code));
+    if (!p) return;
+    delivery.point = { code: p.code, name: p.name, address: p.address, work_time: p.work_time || '' };
+    saveCheckout();
+    haptic('light');
+    renderDelivery();
+    autoQuote();
+    $('cdek-point-card').querySelector('.text-link')?.focus({ preventScroll: true });
+}
+
+function changePoint() {
+    delivery.point = null;
+    delivery.quote = null;
+    saveCheckout();
+    showPoints();
+    renderDelivery();
+    $('cdek-point-filter').focus();
+}
+
+function bindDelivery() {
+    document.querySelectorAll('input[name="delivery-method"]').forEach((r) => r.addEventListener('change', onMethodChange));
+    const city = $('cdek-city');
+    city.addEventListener('input', onCityInput);
+    city.addEventListener('keydown', onCityKey);
+    city.addEventListener('focus', () => { if (!delivery.city && (citySuggest.items === null || citySuggest.items.length)) renderCityList(); });
+    city.addEventListener('blur', () => setCityListOpen(false));
+    const list = $('cdek-city-list');
+    list.addEventListener('mousedown', (e) => e.preventDefault()); // иначе blur поля закроет список до клика
+    list.addEventListener('click', (e) => {
+        const li = e.target.closest('.suggest-item');
+        if (li) selectCity(citySuggest.items[Number(li.dataset.idx)]);
+    });
+    $('cdek-point-filter').addEventListener('input', () => {
+        pointsView.limit = POINTS_PAGE;
+        renderPoints();
+    });
+    $('cdek-point-list').addEventListener('click', (e) => {
+        const btn = e.target.closest('.point-item');
+        if (btn) selectPoint(btn.dataset.code);
+    });
+    $('cdek-point-more').addEventListener('click', () => {
+        pointsView.limit += POINTS_PAGE;
+        renderPoints();
+    });
+    $('checkout-address').addEventListener('input', () => {
+        quoteState.error = '';
+        renderDelivery();
+    });
+    $('pochta-quote-btn').addEventListener('click', () => {
+        haptic('light');
+        requestQuote();
+    });
+}
+
+// --- форма ---
+
+// Поля формы ровно как в теле POST api/order (без корзины).
 function readCheckout() {
     const data = Object.fromEntries(CHECKOUT_FIELDS.map((f) => [f, $(`checkout-${f}`).value.trim()]));
-    data.delivery = document.querySelector('input[name="delivery-method"]:checked')?.value || 'cdek';
-    data.payment = document.querySelector('input[name="payment-method"]:checked')?.value || 'qr';
-    return data;
+    delete data.address; // адрес — только у Почты, его кладёт deliveryPayload
+    CONSENT_FIELDS.forEach((f) => { data[f] = $(`checkout-${f}`).checked; });
+    return { ...data, ...deliveryPayload() };
+}
+
+// В localStorage — ещё и выбранные город/пункт целиком, чтобы показать их без запроса к СДЭК.
+function saveCheckout() {
+    store.set(CHECKOUT_KEY, {
+        ...readCheckout(),
+        address: $('checkout-address').value,
+        cdek_city: delivery.city,
+        cdek_point_info: delivery.point,
+        pochta_quoted_for: delivery.pochtaQuotedFor,
+    });
+}
+
+// Кнопка оплаты доступна, только когда стоят обе галочки и доставка рассчитана для этой корзины
+function syncSubmit() {
+    const btn = $('submit-order-btn');
+    const ready = quoteValid();
+    btn.disabled = submitting || !checkoutCfg.enabled || !ready || !CONSENT_FIELDS.every((f) => $(`checkout-${f}`).checked);
+    if (!submitting) btn.innerText = ready ? `Перейти к оплате · ${rub(delivery.quote.total)}` : 'Перейти к оплате';
 }
 
 function loadCheckoutData() {
     const data = store.get(CHECKOUT_KEY, null);
     if (!data) return;
     CHECKOUT_FIELDS.forEach((f) => { if (data[f]) $(`checkout-${f}`).value = data[f]; });
-    for (const [name, value] of [['delivery-method', data.delivery], ['payment-method', data.payment]]) {
-        const radio = document.querySelector(`input[name="${name}"][value="${CSS.escape(value || '')}"]`);
-        if (radio) radio.checked = true;
+    const radio = document.querySelector(`input[name="delivery-method"][value="${CSS.escape(data.delivery || '')}"]`);
+    if (radio) radio.checked = true;
+    delivery.method = deliveryMethod();
+    const city = data.cdek_city;
+    if (city && Number.isInteger(city.code) && typeof city.name === 'string') {
+        delivery.city = { code: city.code, name: city.name, region: String(city.region || '') };
+        $('cdek-city').value = city.name;
+        const p = data.cdek_point_info;
+        if (p && p.code != null && String(p.code) === String(data.cdek_point)) {
+            delivery.point = { code: p.code, name: String(p.name || ''), address: String(p.address || ''), work_time: String(p.work_time || '') };
+        }
     }
+    delivery.pochtaQuotedFor = typeof data.pochta_quoted_for === 'string' ? data.pochta_quoted_for : '';
+    // галочки переживают уход на подтверждение в Telegram: заказ после возврата отправляется сам
+    CONSENT_FIELDS.forEach((f) => { $(`checkout-${f}`).checked = data[f] === true; });
 }
 
 function clearCheckout() {
     store.remove(CHECKOUT_KEY);
     CHECKOUT_FIELDS.forEach((f) => { $(`checkout-${f}`).value = ''; });
+    CONSENT_FIELDS.forEach((f) => { $(`checkout-${f}`).checked = false; });
+    delivery = { method: deliveryMethod(), city: null, point: null, pochtaQuotedFor: '', quote: null };
+    $('cdek-city').value = '';
+    $('cdek-point-filter').value = '';
+    renderDelivery();
 }
 
 async function processOrder() {
@@ -980,131 +1834,295 @@ async function processOrder() {
         showCustomAlert('Ваша корзина пуста или товары были обновлены.');
         return;
     }
+    await checkoutReady;
+    if (!checkoutCfg.enabled) {
+        renderCheckout();
+        return;
+    }
     const form = readCheckout();
-    const required = ['name', 'surname', 'patronymic', 'telegram', 'email', 'address'];
+    const required = ['name', 'surname', 'patronymic', 'telegram', 'email'];
     if (required.some((f) => !form[f]) || form.phone.length !== 15) {
         showCustomAlert('Пожалуйста, заполните все обязательные поля!');
+        return;
+    }
+    if (!deliveryComplete()) {
+        showCustomAlert(delivery.method === 'pochta' ? 'Укажите адрес для доставки Почтой и нажмите «Рассчитать».' : 'Выберите город и пункт выдачи СДЭК.');
+        return;
+    }
+    if (!form.consent || !form.offer) {
+        showCustomAlert('Чтобы оформить заказ, отметьте согласие на обработку персональных данных и условия оферты.');
+        return;
+    }
+    // Сайт без входа: заказ создаётся только после подтверждения через Telegram
+    if (!IN_TG && !account.user) {
+        if (account.loginEnabled) openTgConfirm();
+        else showCustomAlert(LOGIN_RESULT.disabled);
         return;
     }
 
     const button = $('submit-order-btn');
     submitting = true;
     button.disabled = true;
-    button.innerText = 'Отправка...';
+    button.innerText = 'Создаём оплату...';
     try {
+        // сумму на кнопке человек должен видеть до оплаты: без свежего расчёта не отправляем
+        if (!(await ensureQuote())) return;
         const response = await fetch('api/order', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'X-TG-Init-Data': tg?.initData || '' },
-            body: JSON.stringify({ ...form, cart: cart.map(({ id, size, quantity }) => ({ id, size, quantity })) }),
+            body: JSON.stringify({ ...form, cart: cartPayload() }),
         });
         const data = await response.json().catch(() => ({}));
         if (response.status === 401 && !IN_TG) {
-            account.user = null; // вход истёк или выполнен выход в другой вкладке
-            renderCheckoutGate();
-            showCustomAlert('Войдите через Telegram ещё раз — данные формы сохранены.');
+            account.user = null; // вход истёк или выполнен выход в другой вкладке — подтверждаем заново
+            renderAccountSlot();
+            renderLandingUser();
+            if (account.loginEnabled) openTgConfirm();
+            else showCustomAlert(LOGIN_RESULT.disabled);
             return;
         }
+        if (response.status === 503) retryCheckoutConfig(); // оформление выключили — покажем заглушку
+        if (response.status === 400) delivery.quote = null; // сервер мог посчитать доставку иначе — пересчитаем
         if (!response.ok || !data.ok) throw new Error(data.description || `Системный сбой сервера. Код: ${response.status}`);
 
         hapticResult('success');
+        if (data.order.notified === false && account.user) {
+            account.user.needs_bot_start = true;
+            renderBotAlert();
+        }
         cart = [];
         saveCart();
         updateCartBadge();
         clearCheckout();
-        if (data.order.qr) {
-            $('payment-qr-img').src = data.order.qr;
-            $('qr-total-amount').innerText = rub(data.order.total);
-            resetTo('qr'); // «назад» с экрана оплаты ведёт в каталог, а не к повторной отправке
-        } else {
-            resetTo('catalog');
-            showCustomAlert('Менеджер свяжется с вами!');
-        }
+        startPayment(data.order);
     } catch (error) {
         const message = error instanceof TypeError ? 'нет связи с сервером' : error.message;
-        showCustomAlert(`Ошибка при отправке заказа: ${message}`);
+        showCustomAlert(`Заказ не оформлен: ${message}`);
     } finally {
         submitting = false;
-        button.disabled = false;
-        button.innerText = 'Подтвердить заказ';
+        syncSubmit();
+        if (!delivery.quote) autoQuote();
     }
 }
 
-function confirmQRPayment() {
-    hapticResult('success');
-    resetTo('catalog');
-    showCustomAlert('Спасибо за покупку! Статус заказа обновится в ближайшее время. Отследить его можно в разделе Cart → Order.');
+// --- оплата ---
+// Сайт уходит на страницу банка и возвращается с ?payment=…; мини-апп открывает оплату в браузере и ждёт здесь,
+// спрашивая сервер раз в 3 с (сервер сам сверяется с банком). Опрос идёт, только пока экран открыт и виден.
+
+const PAY_TEXT = {
+    unknown: 'Если оплата прошла, статус обновится в разделе «Текущие заказы».',
+    cancelled: 'Заказ отменён: оплата не поступила. Оформите заказ заново, если он ещё нужен.',
+    expired: 'Время на оплату вышло, заказ отменён. Оформите заказ заново, если он ещё нужен.',
+    refunded: 'Деньги за заказ возвращены.',
+};
+const PAY_POLL_MS = 3000;
+const PAY_RETURN_TRIES = 40; // после возврата с «успехом» ждём подтверждения банка ~2 минуты
+let pay = null; // { id, total, url, mode: 'wait' | 'success' | 'fail', status, tries, timer, busy, note }
+
+// Ссылку на оплату даёт сервер, но в href/openLink кладём только https — на всякий случай.
+const safePayUrl = (url) => (/^https:\/\//i.test(String(url || '')) ? String(url) : null);
+
+function openPayment(url) {
+    const link = safePayUrl(url);
+    if (!link) return;
+    haptic('light');
+    if (IN_TG && tg?.openLink) tg.openLink(link);
+    else location.assign(link);
 }
+
+function startPayment(order) {
+    const url = safePayUrl(order.payment_url);
+    if (!IN_TG) {
+        if (url) {
+            location.assign(url);
+            return;
+        }
+    } else if (url) {
+        tg.openLink?.(url);
+    }
+    pay = { id: order.id, total: order.total, url, mode: 'wait', status: 'pending', tries: 0, timer: 0, busy: false, note: '' };
+    resetTo('payment'); // «назад» с экрана оплаты — в каталог, а не к повторной отправке
+}
+
+function resumePayPoll() {
+    if (!pay || pay.busy || pay.timer || pay.note) return;
+    if (pay.status && pay.status !== 'pending') return;
+    pollPayment();
+}
+
+async function pollPayment() {
+    const p = pay;
+    if (!p) return;
+    p.timer = 0;
+    if (currentScreen() !== 'payment' || document.visibilityState === 'hidden') return; // вернётся — продолжим
+    p.busy = true;
+    try {
+        const response = await fetch(`api/order/${encodeURIComponent(p.id)}/payment`, { headers: { 'X-TG-Init-Data': tg?.initData || '' } });
+        const data = await response.json().catch(() => ({}));
+        if (response.status === 401) p.note = PAY_TEXT.unknown; // открыли не там, где оформляли, — статус не узнать
+        else if (response.ok && data.ok) {
+            p.status = data.payment_status || null;
+            p.url = safePayUrl(data.payment_url);
+            if (data.total > 0) p.total = data.total; // после возврата с сайта банка сумму знаем только от сервера
+        } else if (response.status < 500 && response.status !== 429) p.note = data.description || PAY_TEXT.unknown;
+    } catch { /* нет сети — спросим ещё раз */ }
+    p.busy = false;
+    if (p !== pay) return;
+    p.tries += 1;
+    if (!p.note && p.status === 'paid') hapticResult('success');
+    const waiting = !p.note && (p.status === 'pending' || p.status == null);
+    if (waiting && p.mode === 'success' && p.tries >= PAY_RETURN_TRIES) p.note = PAY_TEXT.unknown;
+    else if (waiting) p.timer = setTimeout(pollPayment, PAY_POLL_MS);
+    if (currentScreen() === 'payment') renderPayment();
+}
+
+function renderPayment() {
+    const box = $('payment-box');
+    if (!pay) {
+        box.innerHTML = '';
+        return;
+    }
+    const p = pay;
+    const st = p.status;
+    let title;
+    let text;
+    let actions = '';
+    let live = false;
+    const ordersBtn = '<button type="button" class="order-btn" onclick="navigate(\'orders\')">Текущие заказы</button>';
+    const catalogBtn = '<button type="button" class="main-action-btn" onclick="resetTo(\'catalog\')">В каталог</button>';
+    if (st === 'paid') {
+        title = 'Оплата прошла';
+        text = 'Спасибо за заказ! Статус и трек-номер появятся в разделе «Текущие заказы»' + (IN_TG ? ', бот пришлёт их в личные сообщения.' : '.');
+        actions = catalogBtn + ordersBtn;
+    } else if (p.note) {
+        title = p.mode === 'fail' ? 'Оплата не прошла' : 'Статус оплаты';
+        text = p.note;
+        actions = catalogBtn + ordersBtn;
+    } else if (PAY_TEXT[st]) {
+        title = st === 'refunded' ? 'Деньги возвращены' : 'Заказ отменён';
+        text = PAY_TEXT[st];
+        actions = catalogBtn + ordersBtn;
+    } else if (p.mode === 'fail') {
+        title = 'Оплата не прошла';
+        text = p.url ? 'Деньги не списаны. Можно повторить оплату — заказ сохранён.' : 'Деньги не списаны. Статус заказа — в разделе «Текущие заказы».';
+        actions = (p.url ? `<button type="button" class="main-action-btn" onclick="openPayment(pay.url)">Оплатить${p.total ? ` · ${rub(p.total)}` : ''}</button>` : '') + ordersBtn;
+        live = true;
+    } else if (p.mode === 'wait') {
+        title = 'Ожидаем оплату';
+        text = 'Страница оплаты открылась в браузере. После оплаты вернитесь сюда — статус обновится сам.';
+        actions = (p.url ? '<button type="button" class="main-action-btn" onclick="openPayment(pay.url)">Открыть оплату снова</button>' : '') + ordersBtn;
+        live = true;
+    } else {
+        title = 'Проверяем оплату';
+        text = 'Банк подтверждает платёж, обычно это несколько секунд.';
+        actions = ordersBtn;
+        live = true;
+    }
+    box.innerHTML = `
+        <h1 class="main-title pay-title">${esc(title)}</h1>
+        <div class="pay-card">
+            <div class="pay-row"><span>Заказ</span><b>#${esc(p.id)}</b></div>
+            ${p.total ? `<div class="pay-row"><span>Сумма</span><b>${rub(p.total)}</b></div>` : ''}
+            ${live ? '<div class="pay-progress" aria-hidden="true"></div>' : ''}
+        </div>
+        <p class="pay-text" role="status">${esc(text)}</p>
+        <div class="pay-actions">${actions}</div>`;
+}
+
+// Возврат со страницы банка: /?payment=success&order=12. Адрес чистим, чтобы «обновить» не повторяло экран.
+function handlePaymentReturn() {
+    const params = new URLSearchParams(location.search);
+    const result = params.get('payment');
+    const id = parseInt(params.get('order'), 10);
+    if (!result) return;
+    history.replaceState(null, '', location.pathname);
+    if (!(id > 0)) return;
+    pay = { id, total: 0, url: null, mode: result === 'success' ? 'success' : 'fail', status: null, tries: 0, timer: 0, busy: false, note: '' };
+    resetTo('payment');
+}
+
+// Вернулись из браузера с оплатой в мини-апп — спрашиваем сразу, не дожидаясь таймера.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !pay) return;
+    clearTimeout(pay.timer);
+    pay.timer = 0;
+    resumePayPoll();
+});
 
 // --- вход на сайт через Telegram ---
 // В мини-аппе ничего этого не видно: там покупателя подтверждает сам Telegram (initData).
 
-const TG_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21.94 4.3 18.72 19.44c-.24 1.07-.88 1.33-1.78.83l-4.9-3.61-2.37 2.28c-.26.26-.48.48-.99.48l.35-5 9.1-8.22c.4-.35-.08-.55-.61-.2L6.27 13.1l-4.84-1.52c-1.05-.33-1.07-1.05.22-1.56L20.58 2.73c.88-.32 1.65.2 1.36 1.57z"/></svg>';
-
 const LOGIN_RESULT = {
-    cancelled: 'Вход отменён. Когда будете готовы, нажмите «Войти через Telegram» ещё раз.',
-    expired: 'Вход не завершён: ссылка устарела или открылась в другом браузере. Нажмите «Войти через Telegram» ещё раз и подтвердите вход в этом же браузере.',
-    failed: 'Telegram не подтвердил вход. Попробуйте ещё раз через минуту.',
-    disabled: 'Вход на сайте пока недоступен. Заказы можно оформить в приложении магазина в Telegram.',
+    cancelled: 'Подтверждение отменено, заказ не оформлен. Данные сохранены — нажмите «Перейти к оплате», когда будете готовы.',
+    expired: 'Подтверждение не завершено: ссылка устарела или открылась в другом браузере. Заказ не оформлен — нажмите «Перейти к оплате» ещё раз и подтвердите в этом же браузере.',
+    failed: 'Telegram не подтвердил вход, заказ не оформлен. Попробуйте ещё раз через минуту.',
+    disabled: 'Оформить заказ на сайте пока нельзя. Заказы принимаются в приложении магазина в Telegram.',
 };
 
 async function loadAccount() {
     try {
         const response = await fetch('api/me', { headers: { 'X-TG-Init-Data': tg?.initData || '' } });
         const data = await response.json();
-        account = { loginEnabled: Boolean(data.login_enabled), user: data.user || null };
+        account = { loginEnabled: Boolean(data.login_enabled), botUsername: data.bot_username || null, user: data.user || null };
     } catch {
-        account = { loginEnabled: false, user: null };
+        account = { loginEnabled: false, botUsername: null, user: null };
     }
     renderAccountSlot();
+    renderLandingUser();
+    renderBotAlert();
     prefillFromAccount();
-    if (historyStack[historyStack.length - 1] === 'checkout') renderCheckoutGate();
 }
 
-// Почему стоит войти — три вещи, которые покупатель получает. Кнопка ведёт на сервер (auth/login),
-// он отправляет в Telegram; после подтверждения Telegram вернёт обратно на экран next.
-function loginGateHTML(next) {
-    if (!account.loginEnabled) {
-        return `<section class="login-gate">
-            <p class="login-lead">Заказы оформляются через Telegram-приложение магазина — там же видна история заказов.</p>
-            <a class="login-btn" href="https://t.me/morelufs" target="_blank" rel="noopener">${TG_ICON}<span>Открыть Telegram</span></a>
-        </section>`;
-    }
-    const lead = next === 'checkout'
-        ? 'Чтобы оформить заказ, войдите через Telegram. Корзина и заполненные поля сохранятся.'
-        : 'Ваши заказы привязаны к Telegram. Войдите, чтобы увидеть их и следить за статусом.';
-    return `<section class="login-gate">
-        <p class="login-lead">${lead}</p>
-        <ul class="login-why">
-            <li><b>Одна история заказов</b><span>Те же заказы видны здесь, в приложении магазина в Telegram и у бота.</span></li>
-            <li><b>Статус и трек-номер — в Telegram</b><span>Бот напишет, когда заказ подтвердят и отправят.</span></li>
-            <li><b>Телефон без ручного ввода</b><span>Номер, подтверждённый Telegram, сам подставится в заказ.</span></li>
-        </ul>
-        <a class="login-btn" href="auth/login?next=${next}" onclick="startLogin(this)">${TG_ICON}<span>Войти через Telegram</span></a>
-        <p class="login-note">Telegram попросит подтвердить вход и спросит, можно ли передать магазину ваше имя, ник и номер телефона. Пароль и переписки остаются в Telegram.</p>
-    </section>`;
+// --- окно «Последний шаг»: подтверждение через Telegram перед созданием заказа ---
+// Форма и корзина уже в localStorage. Ставим отметку «ждём подтверждения» и уходим в Telegram;
+// вернувшись с login=ok, заказ отправляется сам. Не подтвердил — заказа нет.
+
+const PENDING_KEY = 'tg_shop_pending_order';
+const PENDING_TTL = 15 * 60 * 1000; // дольше — человек мог передумать, сам не отправляем
+
+function openTgConfirm() {
+    $('tg-confirm-modal').classList.add('active');
+    historyStack.push('tg-confirm');
+    tg?.BackButton?.show();
+    haptic('medium');
+}
+
+function closeTgConfirm() {
+    $('tg-confirm-modal').classList.remove('active');
+    if (historyStack[historyStack.length - 1] === 'tg-confirm') historyStack.pop();
+    updateBackButton();
+}
+
+function confirmViaTelegram(e) {
+    saveCheckout();
+    store.set(PENDING_KEY, Date.now());
+    startLogin(e.currentTarget);
+}
+
+function takePendingOrder() {
+    const at = store.get(PENDING_KEY, 0);
+    store.remove(PENDING_KEY);
+    return Date.now() - at < PENDING_TTL;
 }
 
 function startLogin(link) {
+    link.dataset.label ||= link.querySelector('span').innerText;
     link.classList.add('is-busy');
     link.querySelector('span').innerText = 'Открываем Telegram...';
     haptic('light');
 }
 
-// Вернулись кнопкой «назад» со страницы Telegram — кнопка снова «Войти», а не «Открываем...»
+// Вернулись кнопкой «назад» со страницы Telegram — кнопка снова в исходном виде, а не «Открываем...»
 window.addEventListener('pageshow', (e) => {
     if (!e.persisted) return;
+    // браузер вернул страницу целиком из кэша — экран и прокрутка уже на месте, точка возврата не нужна
+    try { sessionStorage.removeItem(RETURN_KEY); } catch { /* приватный режим */ }
+    store.remove(PENDING_KEY);
     document.querySelectorAll('.login-btn.is-busy').forEach((link) => {
         link.classList.remove('is-busy');
-        link.querySelector('span').innerText = 'Войти через Telegram';
+        link.querySelector('span').innerText = link.dataset.label || 'Подтвердить через Telegram';
     });
 });
-
-// Оформление на сайте: без входа — объяснение и кнопка, после входа — обычная форма.
-function renderCheckoutGate() {
-    const needsLogin = !IN_TG && !account.user;
-    $('checkout-login').innerHTML = needsLogin ? loginGateHTML('checkout') : '';
-    $('checkout-form').hidden = needsLogin;
-}
 
 function renderAccountSlot() {
     const slot = $('account-slot');
@@ -1123,7 +2141,9 @@ async function logout() {
     } catch { /* сессия всё равно истечёт; на экране — как после выхода */ }
     account.user = null;
     renderAccountSlot();
-    renderScreenInternal(historyStack[historyStack.length - 1]);
+    renderLandingUser();
+    renderBotAlert();
+    renderScreenInternal(currentScreen());
 }
 
 // Телефон, подтверждённый Telegram, и ник — в пустые поля формы (то, что ввёл покупатель, не трогаем).
@@ -1132,7 +2152,7 @@ function prefillFromAccount() {
     const phone = $('checkout-phone');
     if (u?.phone && !phone.value) {
         phone.value = u.phone;
-        store.set(CHECKOUT_KEY, readCheckout());
+        saveCheckout();
     }
     const syncHint = () => { $('phone-verified').hidden = !u?.phone || phone.value !== u.phone; };
     syncHint();
@@ -1141,6 +2161,66 @@ function prefillFromAccount() {
     if (u?.username && !telegram.value) telegram.value = `@${u.username}`;
 }
 
+// Ник на главном экране — только на сайте: в мини-аппе человек и так в своём Telegram.
+function renderLandingUser() {
+    const el = $('landing-user');
+    const u = account.user;
+    el.hidden = IN_TG || !u;
+    if (el.hidden) return;
+    const who = u.username ? `@${u.username}` : (u.full_name || 'Профиль');
+    el.innerText = who;
+    el.setAttribute('aria-label', `${who} — текущие заказы`);
+}
+
+// --- «!» в корзине: бот не может написать первым ---
+// Сервер знает это по последней попытке написать (заказ, смена статуса) и по Start/блокировке бота.
+
+const botUrl = () => `https://t.me/${account.botUsername || 'morelufs_bot'}`;
+
+function renderBotAlert() {
+    const on = Boolean(account.user?.needs_bot_start);
+    $('bot-alert').classList.toggle('on', on);
+    if (!on) closeBotAlert();
+    const name = `@${account.botUsername || 'morelufs_bot'}`;
+    $('bot-alert').querySelector('.bot-alert-name').innerText = name;
+    $('bot-alert-link').href = botUrl();
+}
+
+function toggleBotAlert(e) {
+    e.stopPropagation();
+    const box = $('bot-alert');
+    const open = !box.classList.contains('open');
+    box.classList.toggle('open', open);
+    $('bot-alert-btn').setAttribute('aria-expanded', String(open));
+    haptic('light');
+}
+
+function closeBotAlert() {
+    $('bot-alert').classList.remove('open');
+    $('bot-alert-btn').setAttribute('aria-expanded', 'false');
+}
+
+// В мини-аппе чат с ботом открывается внутри Telegram, на сайте — в новой вкладке (t.me).
+function openBotChat(e) {
+    if (tg?.openTelegramLink && IN_TG) {
+        e.preventDefault();
+        tg.openTelegramLink(botUrl());
+    }
+}
+
+// тап мимо плашки и Esc закрывают её
+document.addEventListener('click', (e) => {
+    if (!$('bot-alert').contains(e.target)) closeBotAlert();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeBotAlert();
+});
+
+// Нажал Start у бота и вернулся на сайт — перепроверяем, чтобы «!» исчез сам.
+document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && account.user?.needs_bot_start) accountReady = loadAccount();
+});
+
 // Возврат из Telegram: /?login=ok&next=checkout. Адрес чистим, чтобы «обновить» не повторяло сообщение.
 function handleLoginReturn() {
     const params = new URLSearchParams(location.search);
@@ -1148,49 +2228,109 @@ function handleLoginReturn() {
     if (!result) return;
     history.replaceState(null, '', location.pathname);
     const next = ['orders', 'checkout'].includes(params.get('next')) ? params.get('next') : null;
+    const pending = takePendingOrder();
     if (next) {
         historyStack = ['landing', 'cart', next]; // «назад» — в корзину, где начинали
         renderScreenInternal(next);
     }
-    if (result === 'ok') hapticResult('success');
-    else showCustomAlert(LOGIN_RESULT[result] || LOGIN_RESULT.failed);
+    if (result !== 'ok') {
+        showCustomAlert(LOGIN_RESULT[result] || LOGIN_RESULT.failed);
+        return;
+    }
+    hapticResult('success');
+    // подтвердил в Telegram — заказ, ради которого входили, отправляем сам (когда загрузится каталог и вход)
+    if (pending && next === 'checkout') Promise.all([accountReady, catalogReady]).then(() => processOrder());
 }
 
-// --- мои заказы ---
+// --- текущие заказы ---
+
+function ordersEmptyHTML() {
+    const guest = !IN_TG && !account.user;
+    const hint = guest && account.loginEnabled
+        ? `<p class="orders-empty-hint">Заказывали раньше? <a class="text-link" href="auth/login?next=orders">Войдите через Telegram</a>, чтобы увидеть их.</p>`
+          + '<p class="legal-note">Входя, вы даёте <a class="legal-link" href="consent" target="_blank" rel="noopener" data-legal>согласие на обработку персональных данных</a>.</p>'
+        : '';
+    return `<div class="orders-empty"><div class="empty-state"><p class="orders-empty-title">Нет текущих заказов</p>${hint ? `<div class="empty-sub">${hint}</div>` : ''}</div></div>`;
+}
+
+const PAY_STATUS = {
+    pending: 'ожидает оплаты',
+    paid: 'оплачен',
+    cancelled: 'не оплачен, заказ отменён',
+    expired: 'не оплачен вовремя, заказ отменён',
+    refunded: 'деньги возвращены',
+};
+
+// Эти статусы ставит сам сервер по оплате — строка «Оплата: …» под ними повторяла бы их же
+const PAY_STATUS_SHOWN = ['Ожидает оплаты', 'Оплачен', 'Отменён: не оплачен', 'Отменён, деньги возвращены'];
 
 function orderHTML(o) {
     const items = o.items
         .map((i, n) => `${n + 1}. ${esc(i.title)} (Разм: ${esc(i.size)}) — ${i.qty} шт. х ${i.price} руб. (${i.qty * i.price} руб.)`)
         .join('\n');
-    const waiting = o.status === 'Ожидает подтверждения';
-    return `
-        <div class="cart-item order-card">
+    const waiting = ['Ожидает подтверждения', 'Ожидает оплаты'].includes(o.status);
+    const head = `
             <div class="order-head">
-                <h4>Заказ #${o.id}</h4>
+                <h4>Заказ #${esc(o.id)}</h4>
                 <span class="order-status${waiting ? '' : ' order-status-active'}">${esc(o.status)}</span>
             </div>
-            ${o.track ? `<div class="order-track">Трек-номер: ${esc(o.track)}</div>` : ''}
+            ${o.track ? `<div class="order-track">Трек-номер: ${esc(o.track)}</div>` : ''}`;
+    // заказы до онлайн-оплаты — как раньше, со способом оплаты
+    if (o.payment_status == null) {
+        return `
+        <div class="cart-item order-card">${head}
             <div class="order-details"><b>Телефон:</b> +7 ${esc(o.phone)}
 <b>Telegram:</b> ${esc(o.telegram)}
 <b>Email:</b> ${esc(o.email)}
 <b>Способ доставки:</b> ${esc(o.delivery)}
 <b>Адрес ПВЗ:</b> ${esc(o.address)}
-<b>Способ оплаты:</b> ${esc(o.payment)}
-
+${o.payment ? `<b>Способ оплаты:</b> ${esc(o.payment)}\n` : ''}
 <b>Состав заказа:</b>
 ${items}
 
 <b>ИТОГО: ${rub(o.total)}.</b></div>
         </div>`;
+    }
+    const url = o.payment_status === 'pending' ? safePayUrl(o.payment_url) : null;
+    const addrLabel = /почт/i.test(o.delivery || '') ? 'Адрес' : 'Пункт выдачи';
+    const goods = o.goods_total ?? o.total - (o.delivery_cost || 0);
+    const payBtn = !url ? '' : IN_TG
+        ? `<button type="button" class="main-action-btn order-pay-btn" data-pay-url="${esc(url)}">Оплатить · ${rub(o.total)}</button>`
+        : `<a class="main-action-btn order-pay-btn" href="${esc(url)}">Оплатить · ${rub(o.total)}</a>`;
+    return `
+        <div class="cart-item order-card">${head}
+            ${PAY_STATUS_SHOWN.includes(o.status) ? '' : `<div class="order-pay order-pay-${esc(o.payment_status)}">Оплата: ${esc(PAY_STATUS[o.payment_status] || o.payment_status)}</div>`}
+            <div class="order-details"><b>Телефон:</b> +7 ${esc(o.phone)}
+<b>Telegram:</b> ${esc(o.telegram)}
+<b>Email:</b> ${esc(o.email)}
+<b>Доставка:</b> ${esc(o.delivery)}
+<b>${addrLabel}:</b> ${esc(o.address)}
+
+<b>Состав заказа:</b>
+${items}</div>
+            <dl class="order-sum">
+                <div class="total-row"><dt>Товары</dt><dd>${rub(goods)}</dd></div>
+                <div class="total-row"><dt>Доставка</dt><dd>${rub(o.delivery_cost || 0)}</dd></div>
+                <div class="total-row total-row-sum"><dt>Итого</dt><dd>${rub(o.total)}</dd></div>
+            </dl>
+            ${payBtn}
+        </div>`;
 }
+
+// «Оплатить» в мини-аппе — во внешнем браузере через Telegram, иначе страница банка заменила бы приложение
+document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-pay-url]');
+    if (btn) openPayment(btn.dataset.payUrl);
+});
 
 async function fetchAndRenderOrders() {
     const container = $('orders-container');
+    $('orders-screen').classList.remove('has-orders');
     container.innerHTML = '<div class="loading-msg">Загрузка данных...</div>';
     await accountReady;
     renderAccountSlot();
     if (!IN_TG && !account.user) {
-        container.innerHTML = loginGateHTML('orders');
+        container.innerHTML = ordersEmptyHTML();
         return;
     }
     try {
@@ -1198,16 +2338,152 @@ async function fetchAndRenderOrders() {
         if (response.status === 401 && !IN_TG) {
             account.user = null;
             renderAccountSlot();
-            container.innerHTML = loginGateHTML('orders');
+            container.innerHTML = ordersEmptyHTML();
             return;
         }
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.description || `HTTP ${response.status}`);
-        container.innerHTML = data.orders.length ? data.orders.map(orderHTML).join('') : emptyMessage('У вас пока нет заказов');
+        container.innerHTML = data.orders.length ? data.orders.map(orderHTML).join('') : ordersEmptyHTML();
+        $('orders-screen').classList.toggle('has-orders', data.orders.length > 0);
     } catch (error) {
         const message = error instanceof TypeError ? 'Сетевая ошибка при загрузке.' : error.message;
         container.innerHTML = `<div class="loading-msg error-msg">${esc(message)}</div>`;
     }
+}
+
+// --- FAQ ---
+
+// одновременно открыт один ответ; inert убирает ссылки закрытых ответов из Tab
+function bindFaq() {
+    const items = [...document.querySelectorAll('.faq-item')];
+    const setOpen = (item, open) => {
+        item.classList.toggle('open', open);
+        item.querySelector('.faq-q').setAttribute('aria-expanded', String(open));
+        item.querySelector('.faq-a').inert = !open;
+    };
+    items.forEach((item) => {
+        item.querySelector('.faq-q').addEventListener('click', () => {
+            const open = !item.classList.contains('open');
+            items.forEach((other) => setOpen(other, other === item && open));
+            haptic('light');
+        });
+    });
+}
+
+// Мини-апп: обычная ссылка в новую вкладку там ничего не открывает. t.me — внутри Telegram,
+// остальные внешние (Instagram, TikTok…) — в браузере через Telegram. Ссылки со своим обработчиком
+// (уже сделали preventDefault, как «Открыть бота») и документы (data-legal, ниже) не трогаем.
+document.addEventListener('click', (e) => {
+    if (!IN_TG || e.defaultPrevented) return;
+    const a = e.target.closest('a[target="_blank"]:not([data-legal])');
+    if (!a || !/^https?:/.test(a.href)) return;
+    if (/^https:\/\/t\.me\//.test(a.href) && tg?.openTelegramLink) {
+        e.preventDefault();
+        tg.openTelegramLink(a.href);
+    } else if (tg?.openLink) {
+        e.preventDefault();
+        tg.openLink(a.href);
+    }
+});
+
+// --- документы (оферта, политика, согласие, реквизиты) ---
+// Ссылки с data-legal в мини-аппе открываются во внешнем браузере через Telegram, иначе страница документа
+// заменила бы приложение. На сайте — в этой же вкладке: перед уходом запоминаем, где был покупатель,
+// а крестик на странице документа делает «назад» — и restoreReturnPoint возвращает тот же экран и прокрутку.
+// Форма оформления не теряется: она и так сохраняется в localStorage на каждый ввод.
+const RETURN_KEY = 'mls_return'; // это же имя проверяет страница документа (app/legal.py)
+const RETURN_TTL = 60 * 60 * 1000;
+
+document.addEventListener('click', (e) => {
+    const link = e.target.closest('a[data-legal]');
+    if (!link) return;
+    if (IN_TG && tg?.openLink) {
+        e.preventDefault();
+        e.stopPropagation(); // ссылка внутри подписи галочки — не переключать саму галочку
+        tg.openLink(new URL(link.getAttribute('href'), location.href).href);
+        return;
+    }
+    if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return; // сам попросил новую вкладку
+    saveReturnPoint();
+    if (link.target === '_blank') {
+        e.preventDefault();
+        e.stopPropagation();
+        location.assign(link.href);
+    }
+});
+
+function saveReturnPoint() {
+    const screen = currentScreen();
+    const faq = [...document.querySelectorAll('.faq-item')].findIndex((item) => item.classList.contains('open'));
+    try {
+        sessionStorage.setItem(RETURN_KEY, JSON.stringify({
+            t: Date.now(),
+            // окна поверх экрана не восстанавливаем, кроме «Последнего шага» — ссылка на согласие стоит в нём
+            stack: historyStack.filter((s) => !OVERLAYS.has(s) || s === 'tg-confirm'),
+            scroll: $(`${screen}-screen`)?.scrollTop || 0,
+            product: currentProduct?.id ?? null,
+            size: selectedSize,
+            slide: currentSlideIdx,
+            faq,
+        }));
+    } catch { /* приватный режим — вернёмся на главную */ }
+}
+
+function takeReturnPoint() {
+    try {
+        const saved = JSON.parse(sessionStorage.getItem(RETURN_KEY));
+        sessionStorage.removeItem(RETURN_KEY);
+        return saved;
+    } catch {
+        return null;
+    }
+}
+
+// Пока догружаются каталог, заказы, пункты выдачи, высота экрана растёт — держим прокрутку на месте,
+// пока покупатель сам не начнёт листать.
+function holdScroll(el, y) {
+    if (!el || !(y > 0)) return;
+    const until = performance.now() + 2500;
+    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'];
+    let stopped = false;
+    const stop = () => { stopped = true; };
+    events.forEach((t) => document.addEventListener(t, stop, { once: true, passive: true, capture: true }));
+    const tick = () => {
+        if (stopped || performance.now() > until) {
+            events.forEach((t) => document.removeEventListener(t, stop, { capture: true }));
+            return;
+        }
+        if (Math.abs(el.scrollTop - y) > 1) el.scrollTop = y;
+        requestAnimationFrame(tick);
+    };
+    tick();
+}
+
+// Вернулись со страницы документа кнопкой «назад» (крестик там — это history.back()).
+// Обычный заход на сайт или переход по логотипу — не «назад», там стартовый экран.
+async function restoreReturnPoint() {
+    const saved = takeReturnPoint();
+    const nav = performance.getEntriesByType?.('navigation')?.[0];
+    if (!saved || nav?.type !== 'back_forward' || !(Date.now() - saved.t < RETURN_TTL)) return;
+    const stack = (Array.isArray(saved.stack) ? saved.stack : [])
+        .filter((s) => typeof s === 'string' && (s === 'tg-confirm' || (SECTION[s] && $(`${s}-screen`))));
+    if (stack.length < 2 || stack[0] !== 'landing' || historyStack.length > 1) return; // уже ушли с главной сами
+    await catalogReady;
+    if (historyStack.length > 1) return;
+    if (stack.includes('product')) {
+        if (!fillProduct(saved.product, saved.size)) return; // товар убрали из каталога
+        const n = currentProduct.images.length;
+        if (saved.slide > 0 && saved.slide < n) setSlide(saved.slide);
+    }
+    const overlay = stack[stack.length - 1] === 'tg-confirm';
+    historyStack = overlay ? stack.slice(0, -1) : stack;
+    const screen = currentScreen();
+    if (screen === 'checkout') await checkoutReady;
+    renderScreenInternal(screen);
+    const faq = document.querySelectorAll('.faq-item')[saved.faq];
+    if (screen === 'catalog' && faq && !faq.classList.contains('open')) faq.querySelector('.faq-q').click();
+    if (overlay) openTgConfirm();
+    holdScroll($(`${screen}-screen`), saved.scroll);
 }
 
 // --- инициализация ---
@@ -1231,13 +2507,17 @@ function init() {
     phone.addEventListener('input', (e) => { e.target.value = formatPhone(e.target.value); });
 
     loadCheckoutData();
-    const saveCheckout = () => store.set(CHECKOUT_KEY, readCheckout());
+    bindDelivery();
     document.querySelectorAll('#checkout-screen input, #checkout-screen textarea').forEach((el) => {
         el.addEventListener('input', saveCheckout);
         el.addEventListener('change', saveCheckout);
     });
     document.querySelectorAll('.radio-input').forEach((r) => r.addEventListener('change', () => haptic('light')));
+    CONSENT_FIELDS.forEach((f) => $(`checkout-${f}`).addEventListener('change', () => { haptic('light'); syncSubmit(); }));
+    renderDelivery();
 
+    bindFaq();
+    bindCurtains();
     bindSwipe($('main-carousel'));
     bindLightboxGestures($('lightbox-carousel'));
     // клик по тёмному полю вокруг фото закрывает просмотр (клики по самому фото — в жестах)
@@ -1247,9 +2527,12 @@ function init() {
 
     updateCartBadge();
     accountReady = loadAccount();
+    catalogReady = loadCatalog();
+    checkoutReady = loadCheckoutConfig();
     renderScreenInternal('landing');
     handleLoginReturn();
-    loadCatalog();
+    handlePaymentReturn();
+    restoreReturnPoint();
 }
 
 init();

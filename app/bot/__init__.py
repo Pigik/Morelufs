@@ -20,12 +20,15 @@ ADMIN_COMMANDS = USER_COMMANDS + [
     BotCommand(command="edit_offer", description="Заказы: статусы и трек-номера"),
     BotCommand(command="mailing", description="Рассылка всем пользователям"),
     BotCommand(command="test_mailing", description="Тестовая рассылка админам"),
+    BotCommand(command="forget", description="Удалить данные покупателя по Telegram ID"),
     BotCommand(command="cancel", description="Отменить ввод"),
 ]
 
 
-def create_dispatcher(settings: Settings, db: Database) -> Dispatcher:
-    dp = Dispatcher(settings=settings, db=db)  # доступны в хендлерах как аргументы settings, db
+def create_dispatcher(settings: Settings, db: Database, payments=None, cdek=None, pochta=None) -> Dispatcher:
+    """payments, cdek, pochta — те же клиенты, что у API (None — сервис не настроен)."""
+    # доступны в хендлерах как одноимённые аргументы
+    dp = Dispatcher(settings=settings, db=db, payments=payments, cdek=cdek, pochta=pochta)
     dp.include_routers(admin.router, user.router)  # admin первым: его FSM-ввод важнее
     return dp
 

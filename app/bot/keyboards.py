@@ -16,7 +16,9 @@ class OrdersPage(CallbackData, prefix="op"):
 
 
 class OrderAct(CallbackData, prefix="oa"):
-    """action: open | status (arg — индекс в STATUS_PRESETS) | ask_status | ask_track | delete | delete_ok."""
+    """action: open | status (arg — индекс в STATUS_PRESETS) | ask_status | ask_track | delete | delete_ok |
+    delete_comment (удалить с комментарием покупателю) | ship (создать отправление) | fetch_track | refund |
+    refund_ok."""
 
     id: int
     action: str
@@ -28,6 +30,10 @@ def webapp(url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="Открыть приложение", web_app=WebAppInfo(url=url))
     ]])
+
+
+def pay(url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Оплатить", url=url)]])
 
 
 def open_order(order_id: int) -> InlineKeyboardMarkup:
@@ -53,8 +59,17 @@ def orders_list(orders: list[Order], page: int, total: int) -> InlineKeyboardMar
     return kb.as_markup()
 
 
-def order_card(o: Order, page: int) -> InlineKeyboardMarkup:
+def order_card(o: Order, page: int, services: frozenset[str] = frozenset()) -> InlineKeyboardMarkup:
+    """services — настроенные сервисы: "payments", "cdek", "pochta". Без сервиса его кнопок нет."""
     kb = InlineKeyboardBuilder()
+    paid = o.payment_status == "paid"
+    if paid and not o.shipment_id and o.delivery in services:
+        kb.button(text="🚚 Создать отправление", callback_data=OrderAct(id=o.id, action="ship", page=page))
+    if o.shipment_id and not o.track and o.delivery in services:
+        kb.button(text="🔄 Получить трек-номер", callback_data=OrderAct(id=o.id, action="fetch_track", page=page))
+    if paid and o.payment_id and "payments" in services:
+        kb.button(text="💸 Вернуть деньги", callback_data=OrderAct(id=o.id, action="refund", page=page))
+    actions = len(list(kb.buttons))
     for idx, status in enumerate(STATUS_PRESETS):
         mark = "• " if status == o.status else ""
         kb.button(text=f"{mark}{status}", callback_data=OrderAct(id=o.id, action="status", page=page, arg=idx))
@@ -62,12 +77,23 @@ def order_card(o: Order, page: int) -> InlineKeyboardMarkup:
     kb.button(text="📦 Трек-номер", callback_data=OrderAct(id=o.id, action="ask_track", page=page))
     kb.button(text="🗑 Удалить", callback_data=OrderAct(id=o.id, action="delete", page=page))
     kb.button(text="« К списку", callback_data=OrdersPage(page=page))
-    kb.adjust(2)
+    kb.adjust(*[1] * actions, 2)  # действия с сервисами — по одной в строке, остальное по две
     return kb.as_markup()
 
 
 def confirm_delete(o: Order, page: int) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
-    kb.button(text=f"Да, удалить #{o.id}", callback_data=OrderAct(id=o.id, action="delete_ok", page=page))
+    kb.button(text="Да, удалить без комментария", callback_data=OrderAct(id=o.id, action="delete_ok", page=page))
+    kb.button(text="Да, удалить с комментарием",
+              callback_data=OrderAct(id=o.id, action="delete_comment", page=page))
+    kb.button(text="Отмена", callback_data=OrderAct(id=o.id, action="open", page=page))
+    kb.adjust(1)
+    return kb.as_markup()
+
+
+def confirm_refund(o: Order, page: int) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=f"Да, вернуть {texts.money(o.total)}",
+              callback_data=OrderAct(id=o.id, action="refund_ok", page=page))
     kb.button(text="Отмена", callback_data=OrderAct(id=o.id, action="open", page=page))
     return kb.as_markup()
