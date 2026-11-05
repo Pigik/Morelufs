@@ -1,8 +1,9 @@
 """Команды покупателя: /start, /my_orders, /logout; блокировка бота."""
 
 from aiogram import Bot, F, Router
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import KICKED, MEMBER, ChatMemberUpdatedFilter, Command, CommandStart
-from aiogram.types import ChatMemberUpdated, LinkPreviewOptions, Message
+from aiogram.types import CallbackQuery, ChatMemberUpdated, LinkPreviewOptions, Message
 
 from app import texts
 from app.bot import keyboards as kb
@@ -16,11 +17,41 @@ router = Router(name="user")
 @router.message(CommandStart())
 async def start(message: Message, bot: Bot, db: Database, settings: Settings) -> None:
     user = message.from_user
-    if await db.upsert_user(user.id, user.username, user.full_name):
+    is_new = await db.upsert_user(user.id, user.username, user.full_name)
+    if is_new:
         await send_many(bot, settings.admin_ids, texts.new_user(user.id, user.full_name, user.username))
     await db.set_bot_dm(user.id, True)  # нажал Start — теперь бот может писать о заказах
-    await message.answer(texts.start(settings.webapp_url), reply_markup=kb.webapp(settings.webapp_url),
-                         link_preview_options=LinkPreviewOptions(is_disabled=True))
+
+    if await db.start_confirmed(user.id):
+        await message.answer(texts.start(), reply_markup=kb.webapp(settings.webapp_url),
+                             link_preview_options=LinkPreviewOptions(is_disabled=True))
+        return
+
+    # ещё не нажал «Продолжить»: прошлое сообщение с документами убираем, присылаем такое же
+    old_id = await db.start_message_id(user.id)
+    if old_id:
+        try:
+            await bot.delete_message(user.id, old_id)
+        except TelegramBadRequest:
+            pass
+    sent = await message.answer(texts.start_legal(settings.webapp_url), reply_markup=kb.start_continue(),
+                                link_preview_options=LinkPreviewOptions(is_disabled=True))
+    await db.set_start_message_id(user.id, sent.message_id)
+
+
+@router.callback_query(F.data == kb.START_CONTINUE)
+async def start_continue(call: CallbackQuery, bot: Bot, db: Database, settings: Settings) -> None:
+    """«Продолжить» на первом запуске: убираем документы и показываем обычный старт."""
+    await call.answer()
+    await db.confirm_start(call.from_user.id)
+    if call.message:
+        try:
+            await call.message.delete()
+        except TelegramBadRequest:
+            pass  # сообщение уже удалено или слишком старое — просто отправим обычный старт
+    await bot.send_message(call.from_user.id, texts.start(),
+                           reply_markup=kb.webapp(settings.webapp_url),
+                           link_preview_options=LinkPreviewOptions(is_disabled=True))
 
 
 @router.message(Command("my_orders"))

@@ -8,7 +8,7 @@ from tests.conftest import ADMINS, FakeBot, FakeLogin, FakeYooKassa, api_client,
 ORDER = {
     "surname": "Иванов", "name": "Иван", "patronymic": "Иванович", "phone": "(900) 123-45-67",
     "telegram": "@ivan", "email": "ivan@example.com", "delivery": "cdek", "cdek_city_code": 424,
-    "cdek_point": "KZN1", "comment": "", "cart": [{"id": 4, "size": "M", "quantity": 2, "price": 1}],
+    "cdek_point": "KZN1", "comment": "", "cart": [{"id": 4, "size": "0", "quantity": 2, "price": 1}],
     "consent": True, "offer": True,
     "delivery_cost": 1, "total": 1,  # от клиента не принимаются
 }
@@ -49,6 +49,10 @@ def test_catalog_and_static(settings):
             assert page.status == 200 and "text/html" in page.content_type
             assert page.headers["Cache-Control"] == "no-cache"
             assert (await client.get("/js/app.js")).status == 200
+            assert (await client.get("/favicon.ico")).status == 200
+            assert (await client.get("/assets/img/favicon-96.png")).status == 200
+            robots = await client.get("/robots.txt")
+            assert robots.status == 200 and "Allow: /" in await robots.text()
             assert (await client.get("/assets/../app/config.py")).status in (403, 404)
     run(scenario())
 
@@ -84,7 +88,7 @@ def test_order_flow(settings):
             resp = await post(client, ORDER)
             body = await resp.json()
             assert resp.status == 200 and body["ok"]
-            assert body["order"]["total"] == 2 * 2590 + 350  # цена из каталога, доставку посчитал сервер
+            assert body["order"]["total"] == 2 * 5990 + 350  # цена из каталога, доставку посчитал сервер
             assert body["order"]["delivery_cost"] == 350 and body["order"]["payment_url"] == "https://pay.test/1"
             assert {cid for cid, _ in bot.sent} == {1}  # админам — только после оплаты
 
@@ -93,13 +97,14 @@ def test_order_flow(settings):
 
             orders = (await (await get_orders(client, 1)).json())["orders"]
             item = orders[0]["items"][0]
-            assert len(orders) == 1 and (item["size"], item["qty"], item["price"]) == ("M", 2, 2590)
+            assert len(orders) == 1 and (item["size"], item["qty"], item["price"]) == ("0", 2, 5990)
             assert (orders[0]["goods_total"], orders[0]["delivery_cost"], orders[0]["payment_status"],
                     orders[0]["payment_url"], orders[0]["address"]) == (
-                5180, 350, "pending", "https://pay.test/1", "Казань, ул. Пушкина, 1")
+                11980, 350, "pending", pay_link(settings, 1), "Казань, ул. Пушкина, 1")
             assert (await (await get_orders(client, 2)).json())["orders"] == []  # чужие заказы не видны
             order = await db.get_order(1)
             assert order.username == "ivan"
+            assert order.payment_url == "https://pay.test/1"  # в БД — ссылка ЮKassa, клиенту — /pay/…
             assert order.consent_at and order.legal_version.startswith("согласие ")  # факт согласия сохранён
     run(scenario())
 
@@ -137,7 +142,7 @@ def test_order_validation(settings):
             cases = [
                 ({"cart": [{"id": 1, "size": "M", "quantity": 1}]}, "закончились"),  # нет в наличии
                 ({"cart": [{"id": 4, "size": "XXL", "quantity": 1}]}, "Размер"),
-                ({"cart": [{"id": 4, "size": "M", "quantity": 99}]}, "Корзина"),
+                ({"cart": [{"id": 4, "size": "0", "quantity": 99}]}, "Корзина"),
                 ({"phone": "123"}, "Телефон"),
                 ({"delivery": "<b>x</b>"}, "Доставка"),
             ]
@@ -159,7 +164,7 @@ def test_user_input_is_escaped_and_flood_alert(settings):
             assert "&lt;script&gt;" in admin_text and "<script>" not in admin_text
 
             bot.sent.clear()
-            flood = {**ORDER, "cart": [{"id": 4, "size": "M", "quantity": 1}] * 31}
+            flood = {**ORDER, "cart": [{"id": 4, "size": "0", "quantity": 1}] * 31}
             assert (await post(client, flood, 5)).status == 400
             assert (await post(client, flood, 5)).status == 400
     run(scenario())
@@ -345,7 +350,7 @@ def test_cdek_order_details_and_pay_button(settings):
             (city, parcel), = cdek.quotes
             assert city == 424 and parcel.weight_g == 2 * 350 + 150  # лонгсливы + упаковка
             create = payments.creates[0]
-            assert create["amount"] == 5530 and create["order_id"] == 1 and create["phone"] == "+79001234567"
+            assert create["amount"] == 12330 and create["order_id"] == 1 and create["phone"] == "+79001234567"
             link = pay_link(settings, 1)
             assert link.startswith("http://example.test/pay/1/") and create["return_url"] == link + "?return=1"
             assert create["receipt"] is None  # YOOKASSA_VAT_CODE не задан — чек не передаём
@@ -366,7 +371,7 @@ def test_receipt_when_vat_code_set(settings):
         async with api_client(replace(settings, yookassa_vat_code=1), FakeBot(), payments=payments) as (client, _):
             assert (await post(client, ORDER)).status == 200
             lines = payments.creates[0]["receipt"]
-            assert [(r.price, r.qty, r.payment_subject) for r in lines] == [(2590, 2, "commodity"), (350, 1, "service")]
+            assert [(r.price, r.qty, r.payment_subject) for r in lines] == [(5990, 2, "commodity"), (350, 1, "service")]
     run(scenario())
 
 
@@ -381,7 +386,7 @@ def test_pochta_order_and_bad_address(settings):
             assert await db.count_orders() == 0
             resp = await post(client, POCHTA_ORDER)  # после ошибки доставки ждать 10 секунд не нужно
             body = await resp.json()
-            assert resp.status == 200 and body["order"]["total"] == 5180 + 410
+            assert resp.status == 200 and body["order"]["total"] == 11980 + 410
             assert pochta.quotes[-1][0] == "420111" and pochta.quotes[-1][2] == 0  # без объявленной ценности
             order = await db.get_order(1)
             assert order.address.startswith("420111, ") and order.delivery_info["post_address"]["index"] == "420111"
@@ -425,7 +430,7 @@ def test_quote_and_cdek_lookups(settings):
             body = {"cart": ORDER["cart"], "delivery": "cdek", "cdek_city_code": 424, "cdek_point": "KZN1"}
             resp = await client.post("/api/delivery/quote", json=body)  # гостю тоже можно
             assert await resp.json() == {"ok": True, "delivery_cost": 350, "days_min": 2, "days_max": 4,
-                                         "goods_total": 5180, "total": 5530, "address": "Казань, ул. Пушкина, 1"}
+                                         "goods_total": 11980, "total": 12330, "address": "Казань, ул. Пушкина, 1"}
             assert (await client.post("/api/delivery/quote", json={**body, "cdek_point": "X"})).status == 400
             assert (await client.post("/api/delivery/quote", json={**body, "cart": []})).status == 400
 
@@ -455,7 +460,7 @@ def test_payment_webhook(settings):
             assert (await db.get_order(1)).payment_status == "pending"  # сумма не сошлась — не оплачен
             assert any("не равную заказу" in t for cid, t in bot.sent if cid in ADMINS)  # админ предупреждён
 
-            payments.set("pay-1", "succeeded", 553000)
+            payments.set("pay-1", "succeeded", 1233000)
             for _ in range(2):  # ЮKassa может повторить уведомление
                 resp = await notify(client, "payment.succeeded", "pay-1")
                 assert resp.status == 200 and await resp.text() == "OK"
@@ -471,7 +476,7 @@ def test_payment_webhook(settings):
             assert (await notify(client, "payment.succeeded", "../refunds")).status == 400
             assert (await notify(client, "payout.succeeded", "po-1")).status == 200  # лишние события — игнор
 
-            refund = await payments.refund("pay-1", 5530)  # вернули из личного кабинета
+            refund = await payments.refund("pay-1", 12330)  # вернули из личного кабинета
             await notify(client, "refund.succeeded", refund.id)
             order = await db.get_order(1)
             assert (order.status, order.payment_status) == ("Отменён, деньги возвращены", "refunded")
@@ -551,7 +556,7 @@ def test_order_payment_status_sync(settings):
             resp = await client.get("/api/order/1/payment", headers={"X-TG-Init-Data": make_init_data(1)})
             assert resp.headers["Cache-Control"] == "no-store"
             assert await resp.json() == {"ok": True, "id": 1, "payment_status": "pending", "status": "Ожидает оплаты",
-                                         "total": 5530, "payment_url": pay_link(settings, 1)}
+                                         "total": 12330, "payment_url": pay_link(settings, 1)}
             payments.set("pay-1", "succeeded")  # уведомление ещё не пришло, а ЮKassa уже знает
             mine = {"X-TG-Init-Data": make_init_data(1)}
             body = await (await client.get("/api/order/1/payment", headers=mine)).json()
@@ -618,7 +623,7 @@ def test_admin_card_shipment_and_refund(settings):
             shipment = admin.shipment_for(order)
             assert (shipment.order_number, shipment.recipient.phone, shipment.cdek_point) == ("ML-1", "+79001234567",
                                                                                               "KZN1")
-            assert shipment.items[0].weight_g == 350 and shipment.declared_value == 5180
+            assert shipment.items[0].weight_g == 350 and shipment.declared_value == 11980
 
             cdek.track = None  # СДЭК присваивает номер не сразу
             order, note = await admin.create_shipment(bot, db, order, cdek)
@@ -637,7 +642,7 @@ def test_admin_card_shipment_and_refund(settings):
             payments.refund_status = "succeeded"
             order, note = await admin.refund(bot, db, order, payments)
             assert (order.status, order.payment_status) == ("Отменён, деньги возвращены", "refunded")
-            assert payments.refunds == [("pay-1", 5530)] * 2 and "деньги возвращены" in bot.sent[-1][1]
+            assert payments.refunds == [("pay-1", 12330)] * 2 and "деньги возвращены" in bot.sent[-1][1]
             assert "Вернуть" not in " ".join(buttons(order, svc))
     run(scenario())
 

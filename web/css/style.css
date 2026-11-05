@@ -588,26 +588,26 @@ a.catalog-footer-link { text-decoration: none; }
     }
 
     .catalog-footer-link { font-size: max(12px, 0.85vw); }
+    .catalog-footer-link--creator { order: 1; } /* на ПК «Создатель сайта» остаётся последним */
 }
 
-/* --- коллекции (широкий экран; на телефоне — шторки ниже) --- */
+/* --- коллекции (широкий экран; на телефоне — .mcollection ниже) --- */
 
 .collections { display: none; }
 
-/* --- коллекции на телефоне: фото и описание, между ними шторка (app.js, renderCurtains) --- */
+/* --- коллекции на телефоне: фото на всю ширину; глаз в углу прячет фото и показывает описание
+   (app.js, renderMobileCollections). Тап по фото открывает товар, «open» — подсказка об этом. --- */
 
 /* сетка карточек на телефоне не показывается; остаётся только для «Загрузка…» и ошибки загрузки */
 #products-grid:has(.product-card) { display: none; }
 
-.curtains { padding: 16px 0 24px; }
+.mobile-collections { padding: 16px 0 24px; }
 
-.curtain-group + .curtain-group { margin-top: 40px; }
-/* «Tap to view» и название следующей коллекции идут друг под другом без зазора */
-.curtain-group:has(.curtain-hint) + .curtain-group { margin-top: 0; }
+.mcollection + .mcollection { margin-top: 40px; }
 /* блок без названия — продолжение той же коллекции: отступ от предыдущего фото заметнее */
-.curtain-group + .curtain-group:not(:has(.curtain-name)) { margin-top: 48px; }
+.mcollection + .mcollection:not(:has(.mcollection-name)) { margin-top: 48px; }
 
-.curtain-name {
+.mcollection-name {
     margin: 0 var(--pad) 24px;
     font-size: 15px;
     font-weight: 400;
@@ -616,22 +616,16 @@ a.catalog-footer-link { text-decoration: none; }
     text-align: center;
 }
 
-/* Фото и текст лежат друг на друге на всю ширину экрана; --pos — положение линии от левого края.
-   Обычный блок: фото слева от линии, текст справа; зеркальный (.reverse) — наоборот. */
-.curtain {
-    --pos: 75%;
+/* фото и описание лежат друг на друге на всю ширину экрана; по умолчанию видно фото */
+.mcollection-body {
     position: relative;
     aspect-ratio: 3 / 2;
     overflow: hidden;
-    touch-action: pan-y; /* вертикально — прокрутка страницы, горизонтально — шторка */
     user-select: none;
     -webkit-user-select: none;
 }
 
-/* мышь над фото — «палец» (класс ставит app.js по положению линии) */
-.curtain.over-photo { cursor: pointer; }
-
-.curtain-photo {
+.mcollection-photo {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -639,141 +633,118 @@ a.catalog-footer-link { text-decoration: none; }
     object-fit: cover;
     pointer-events: none;
     -webkit-user-drag: none;
-    /* края фото растворяются в чёрный, как на ПК: с внешней стороны и сверху/снизу; со стороны шторки край чёткий */
-    -webkit-mask-image: linear-gradient(to right, transparent 0, #000 14%), linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
-    -webkit-mask-composite: source-in;
-    mask-image: linear-gradient(to right, transparent 0, #000 14%), linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
-    mask-composite: intersect;
-    clip-path: inset(0 calc(100% - var(--pos)) 0 0);
+    transition: opacity 0.3s ease;
+    /* края растворяются в чёрный, как на ПК */
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
 }
 
-.curtain.reverse .curtain-photo {
-    -webkit-mask-image: linear-gradient(to left, transparent 0, #000 14%), linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
-    mask-image: linear-gradient(to left, transparent 0, #000 14%), linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
-    clip-path: inset(0 0 0 var(--pos));
-}
-
-/* текст не переносится заново при движении шторки — она его просто открывает или закрывает */
-.curtain-text {
+/* описание — тот же текст, что на ПК; показывается вместо скрытого фото */
+.mcollection-text {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
-    padding: 0 calc(var(--pad) + 14px); /* поле шире стрелок шторки, когда она у края */
-    clip-path: inset(0 0 0 var(--pos));
+    padding: 0 var(--pad);
+    opacity: 0;
     pointer-events: none;
+    transition: opacity 0.3s ease;
 }
 
-.curtain.reverse .curtain-text { clip-path: inset(0 calc(100% - var(--pos)) 0 0); }
-
-.curtain-text p {
+.mcollection-text p {
     font-size: 11px;
     line-height: 1.6;
     letter-spacing: 0.01em;
 }
 
-/* линия шторки: тонкая, со слабым свечением; внизу по бокам от неё — стрелки ‹ › */
-.curtain-line {
+.mcollection-date {
     position: absolute;
-    top: 0;
-    bottom: 0;
-    left: clamp(14px, var(--pos), calc(100% - 14px)); /* у края стрелки не уходят за экран */
-    width: 1px;
-    margin-left: -0.5px;
-    background: var(--text);
-    box-shadow: 0 0 6px rgba(255, 255, 255, 0.45);
-    pointer-events: none;
-}
-
-/* Стрелки — два уголка из рамок, с тем же свечением, что у линии. В покое раз в несколько секунд
-   слегка расходятся и возвращаются («дышат») — подсказка, что линию можно двигать;
-   пока тянешь — разошлись и ярче. */
-.curtain-grip {
-    position: absolute;
+    right: var(--pad);
     bottom: 14px;
-    left: 50%;
-}
-
-.curtain-grip::before,
-.curtain-grip::after {
-    content: '';
-    position: absolute;
-    bottom: 0;
-    width: 6px;
-    height: 6px;
-    border: solid var(--text);
-    border-width: 0 0 1px 1px;
-    filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.5));
-    opacity: 0.85;
-    transition: opacity 0.2s ease;
-    animation: 4s ease-in-out infinite;
-}
-
-.curtain-grip::before {
-    right: 5px;
-    transform: rotate(45deg);
-    animation-name: curtain-breathe-left;
-}
-
-.curtain-grip::after {
-    left: 5px;
-    transform: rotate(-135deg);
-    animation-name: curtain-breathe-right;
-}
-
-@keyframes curtain-breathe-left {
-    0%, 70%, 100% { transform: translateX(0) rotate(45deg); }
-    82% { transform: translateX(-3px) rotate(45deg); }
-}
-
-@keyframes curtain-breathe-right {
-    0%, 70%, 100% { transform: translateX(0) rotate(-135deg); }
-    82% { transform: translateX(3px) rotate(-135deg); }
-}
-
-.curtain.dragging .curtain-grip::before,
-.curtain.dragging .curtain-grip::after {
-    opacity: 1;
-    animation: none;
-    transition: transform 0.2s var(--ease), opacity 0.2s ease;
-}
-
-.curtain.dragging .curtain-grip::before { transform: translateX(-3px) rotate(45deg); }
-.curtain.dragging .curtain-grip::after { transform: translateX(3px) rotate(-135deg); }
-
-/* подсказка, что фото открывает товар: слева, вплотную к названию следующей коллекции */
-.curtain-hint {
-    padding: 20px var(--pad) 0;
-    font-size: 12px;
-    font-weight: 600;
-    line-height: 1.15;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-}
-
-/* дата коллекции — справа, прикрыта фото; открывается, когда шторка проходит над ней.
-   clip-path на весь блок (inset: 0), чтобы проценты считались от ширины экрана, как у текста */
-.curtain-date {
-    position: absolute;
-    inset: 0;
-    clip-path: inset(0 0 0 var(--pos));
-    pointer-events: none;
-}
-
-.curtain.reverse .curtain-date {
-    clip-path: inset(0 calc(100% - var(--pos)) 0 0);
-}
-
-.curtain-date span {
-    position: absolute;
-    bottom: 14px;
-    left: 85%;
     font-size: 11px;
     letter-spacing: 0.01em;
 }
 
+/* «OPEN» — только подсказка, что фото открывает товар; нажатие не перехватывает.
+   Оформление как у кнопок Cloth/About/Cart на стартовом экране. */
+.mcollection-open {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 20px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text);
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+/* прозрачная кнопка на всё фото (кроме глаза) открывает карточку товара */
+.mcollection-open-btn {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* глаз в левом верхнем углу: перечёркнутый — фото показано, обычный — фото скрыто */
+.mcollection-eye {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.32);
+    color: var(--text);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s ease;
+}
+
+.mcollection-eye svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6));
+}
+
+.mcollection-eye .eye-on { display: none; }
+
+.mcollection-body.photo-hidden .mcollection-eye .eye-off { display: none; }
+.mcollection-body.photo-hidden .mcollection-eye .eye-on { display: block; }
+
+.mcollection-body.photo-hidden .mcollection-photo,
+.mcollection-body.photo-hidden .mcollection-open { opacity: 0; }
+
+.mcollection-body.photo-hidden .mcollection-text { opacity: 1; }
+
+/* когда фото скрыто, кликабельно только описание-глаз: текст товар не открывает */
+.mcollection-body.photo-hidden .mcollection-open-btn { display: none; }
+
+.mcollection-eye:active { background: rgba(0, 0, 0, 0.5); }
+
 @media (min-width: 900px) and (min-aspect-ratio: 1/1) {
-    #products-grid, .curtains { display: none; }
+    #products-grid, .mobile-collections { display: none; }
     .collections { display: block; padding: 8px 0 clamp(48px, 5vw, 80px); }
 
     /* текст на половине экрана, фото — до края экрана; блоки идут в шахматном порядке */
@@ -926,23 +897,28 @@ a.catalog-footer-link { text-decoration: none; }
 
 /* --- товар --- */
 
-/* Фото начинается от самого верха и заходит под шапку: она прозрачна, пока карточку не прокрутили,
-   — так на телефоне фото видно целиком, без листания до его низа. */
+/* Узкий экран: фото от самого верха страницы, прозрачная шапка лежит поверх него. */
 #product-screen { padding-top: 0; }
 body[data-screen="product"] .topbar { background: transparent; }
 body[data-screen="product"].topbar-scrolled .topbar { background: var(--bg); }
 /* фото бывает и на белом фоне — крестик, кнопки разделов и «M» должны читаться на нём */
 body[data-screen="product"] .topbar-close,
-body[data-screen="product"] .nav-btn {
+body[data-screen="product"] .nav-btn,
+body[data-screen="brand"] .nav-btn {
     text-shadow: 0 0 1px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.55);
 }
-body[data-screen="product"] .logo img { filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.6)); }
+body[data-screen="product"] .logo img,
+body[data-screen="brand"] .logo img { filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.6)); }
 
 .carousel-container {
     position: relative;
     width: 100%;
-    aspect-ratio: 1 / 1;
+    /* Рамка как у горизонтальных фото (3:2): снимок вписывается в неё целиком (object-fit: contain),
+       поэтому вертикальное фото не обрезается и по высоте не выше горизонтальных. */
+    aspect-ratio: 3 / 2;
+    margin-inline: auto;
     overflow: hidden;
+    background: var(--bg);
     touch-action: pan-y;
 }
 
@@ -956,10 +932,13 @@ body[data-screen="product"] .logo img { filter: drop-shadow(0 0 3px rgba(0, 0, 0
 .carousel-track img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
     flex-shrink: 0;
     cursor: zoom-in;
 }
+
+/* вертикальное фото не липнет к краям общей рамки: по 20px сверху и снизу (класс ставит app.js) */
+.carousel-track img.is-portrait { padding: 20px 0; }
 
 /* фото товаров бывают и на белом, и на тёмном фоне — кнопки и точки читаются на любом */
 .carousel-btn {
@@ -1051,7 +1030,7 @@ body[data-screen="product"] .logo img { filter: drop-shadow(0 0 3px rgba(0, 0, 0
 .product-thumbs { display: none; }
 
 .product-thumb {
-    width: 64px;
+    width: 100%; /* ширину задаёт колонка сетки миниатюр */
     aspect-ratio: 1;
     padding: 0;
     background: var(--bg);
@@ -1810,10 +1789,16 @@ button.cart-item-link {
 
 /* --- о бренде (About) --- */
 
+/* Узкий экран: видео от самого верха, прозрачная шапка лежит поверх него
+   (после прокрутки она снова чёрная — syncTopbar в app.js). */
+#brand-screen { padding-top: 0; }
+body[data-screen="brand"] .topbar { background: transparent; }
+body[data-screen="brand"].topbar-scrolled .topbar { background: var(--bg); }
+
 .brand-screen-content {
     max-width: 960px;
     margin: 0 auto;
-    padding: 8px var(--pad) 56px;
+    padding: 0 var(--pad) 56px;
 }
 
 .brand-screen-content { overflow-x: clip; }
@@ -1837,11 +1822,11 @@ button.cart-item-link {
     -webkit-user-select: none;
 }
 
-/* звук: на телефоне — в левом верхнем углу видео, на ПК — в левом нижнем (правило в широком экране) */
+/* звук: в левом нижнем углу видео (на ПК отступы больше — правило в широком экране) */
 .brand-sound {
     position: absolute;
-    top: 12px;
     left: 12px;
+    bottom: 12px;
     z-index: 2;
     display: grid;
     place-items: center;
@@ -2055,9 +2040,8 @@ button.cart-item-link {
         margin: 0;
     }
 
-    /* звук на ПК — в левом нижнем углу видео */
+    /* на ПК звук в том же левом нижнем углу, только отступы больше */
     .brand-sound {
-        top: auto;
         left: clamp(20px, 2vw, 32px);
         bottom: clamp(20px, 2vw, 32px);
     }
@@ -2684,6 +2668,8 @@ body.in-tg .lightbox-close { display: none; }
     :root {
         --pad: 40px;
         --bar-h: 96px;
+        /* низ «M» в шапке: 28px отступ + 36px лого по центру 40px = 66px; фото — на 10px ниже */
+        --photo-top: 76px;
     }
     .topbar { padding: 28px var(--pad); }
     .landing-user { top: 28px; font-size: 14px; }
@@ -2697,10 +2683,13 @@ body.in-tg .lightbox-close { display: none; }
         grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
         gap: 56px;
         align-items: start;
+        /* фото начинается под «M» в шапке (--photo-top), а текст правой колонки —
+           на одной линии с верхом фото */
+        padding-top: var(--photo-top);
         padding-left: var(--pad);
         padding-right: var(--pad);
     }
-    .product-info-box { padding: calc(var(--bar-h) + 8px) 0 56px; }
+    .product-info-box { padding: 0 0 56px; }
 
     /* карточка товара как у Divinity: слева «M», справа крестик, кнопок разделов нет */
     body[data-screen="product"] .logo { display: flex; }
@@ -2715,9 +2704,9 @@ body.in-tg .lightbox-close { display: none; }
     #product-screen .carousel-dots { display: none; }
     .product-thumbs {
         display: grid;
-        /* по 4 в ряд: у худи 8 фото (папки first и second) ложатся в две строки,
+        /* по 5 в ряд: у зипки 5 фото — одна строка, у худи 10 (папки first и second) — две,
            карусель переходит с конца первой строки в начало второй */
-        grid-template-columns: repeat(4, 64px);
+        grid-template-columns: repeat(5, 60px);
         gap: 10px;
         margin-bottom: 32px;
     }

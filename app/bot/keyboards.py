@@ -32,6 +32,16 @@ def webapp(url: str) -> InlineKeyboardMarkup:
     ]])
 
 
+START_CONTINUE = "start_continue"
+
+
+def start_continue() -> InlineKeyboardMarkup:
+    """Первый запуск: сначала документы, приложение — после кнопки «Продолжить»."""
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Продолжить", callback_data=START_CONTINUE)
+    ]])
+
+
 def pay(url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Оплатить", url=url)]])
 

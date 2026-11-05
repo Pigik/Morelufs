@@ -137,7 +137,10 @@ TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{title} — MORELUFS</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="96x96" href="/assets/img/favicon-96.png">
+<link rel="icon" type="image/png" sizes="144x144" href="/assets/img/favicon-144.png">
+<link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
 <meta name="theme-color" content="#000000">
 <style>
 @font-face {{ font-family: 'Source Code Pro'; src: url('/assets/fonts/source-code-pro-400.woff2') format('woff2');
@@ -189,7 +192,8 @@ nav a[aria-current] {{ color: var(--text); }}
 </head>
 <body>
 <header class="topbar">
-<a class="logo" href="/" aria-label="MORELUFS — на главную"><img src="/assets/img/m.webp" alt="" width="326" height="254"></a>
+<a class="logo" href="/" aria-label="MORELUFS — на главную">
+<img src="/assets/img/m.webp" alt="" width="326" height="254"></a>
 <a class="topbar-close" href="/" aria-label="Закрыть">&#10005;</a>
 </header>
 <main>
@@ -212,10 +216,12 @@ nav a[aria-current] {{ color: var(--text); }}
   document.querySelector('.topbar-close').addEventListener('click', (e) => {{
     if (history.length > 1 && fromSite()) {{ e.preventDefault(); history.back(); }}
   }});
-  // Переход между документами заменяет запись в истории: крестик по-прежнему возвращает на сайт, а не в прошлый документ
+  // Переход между документами заменяет запись в истории:
+  // крестик по-прежнему возвращает на сайт, а не в прошлый документ
   document.querySelectorAll('main a, nav a').forEach((a) => a.addEventListener('click', (e) => {{
     const url = new URL(a.href, location.href);
-    if (url.origin !== location.origin || !docs.has(url.pathname) || e.button || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    if (url.origin !== location.origin || !docs.has(url.pathname) ||
+        e.button || e.metaKey || e.ctrlKey || e.shiftKey) return;
     e.preventDefault();
     location.replace(url.href);
   }}));

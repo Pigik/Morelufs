@@ -660,6 +660,9 @@ def create_app(settings: Settings, db: Database, catalog: Catalog, bot: Bot, log
     async def favicon(_: web.Request) -> web.FileResponse:
         return web.FileResponse(settings.web_dir / "favicon.ico")
 
+    async def robots(_: web.Request) -> web.FileResponse:
+        return web.FileResponse(settings.web_dir / "robots.txt")
+
     async def health(_: web.Request) -> web.Response:
         return web.Response(text="ok")
 
@@ -672,6 +675,7 @@ def create_app(settings: Settings, db: Database, catalog: Catalog, bot: Bot, log
     app.router.add_get("/", index)
     app.router.add_get("/healthz", health)
     app.router.add_get("/favicon.ico", favicon)
+    app.router.add_get("/robots.txt", robots)
     app.router.add_get("/api/catalog", get_catalog)
     app.router.add_get("/api/orders", get_orders)
     app.router.add_post("/api/order", post_order)

@@ -18,7 +18,7 @@ const STATUS = {
     in_stock: { order: 2, text: 'В наличии', css: 'in-stock' },
     sold_out: { order: 3, text: 'Нет в наличии', css: 'out' },
 };
-// Коллекции широкой версии каталога: один блок — один товар из catalog.json (id), блоки в шахматном порядке.
+// Коллекции каталога: один блок — один товар из catalog.json (id); на ПК блоки в шахматном порядке.
 const ANGELS_ADVICE = {
     name: 'Angel’s Advice collection',
     text: 'Мое стремление, действие и творчество - подобно совету ангела, который наставляет меня на верный путь. Крик в неизвестность, с целью обрести эхо в лице тех, кто тоже хочет говорить',
@@ -26,8 +26,8 @@ const ANGELS_ADVICE = {
 const COLLECTIONS = [
     {
         name: 'Hoodie Without designers',
-        text: 'Никто не сделает твою работу лучше чем ты сам. Without designers - это протест лично против тебя. Думаешь стоит передавать какому то «профессионалу» свои инструменты? Пренебрежение своим видением из за страха быть не понятым  или неуверенности в себе влечет еще большее разочарование. Do it yourself',
-        date: '',
+        text: 'Никто не сделает твою работу лучше, чем ты сам. Without designers — это протест лично против тебя. Думаешь, стоит передавать какому-то «профессионалу» свои инструменты? Пренебрежение своим видением из-за страха быть не понятым или неуверенности в себе влечет еще большее разочарование. Do it yourself',
+        date: '06.11.26',
         photo: 'assets/img/collection-hoodie.webp',
         focus: '50% 50%',
         id: 4,
@@ -77,6 +77,7 @@ const store = {
 // --- состояние ---
 
 let products = [];
+let catalogRendered = false; // DOM каталога собираем один раз: новые <img> заново декодируются и мигают чёрным
 let cart = store.get(CART_KEY, []);
 let currentProduct = null;
 let selectedSize = null;
@@ -191,14 +192,14 @@ function renderScreenInternal(screenId, restoreScroll = false) {
     }
     // после перерисовки содержимого, иначе каталог ещё пустой и прокрутка упрётся в верх
     if (target) target.scrollTop = restoreScroll ? scrollMemo[target.id] || 0 : 0;
-    syncProductTopbar();
+    syncTopbar();
     updateBackButton();
 }
 
-// Шапка карточки товара прозрачна и лежит поверх фото; после прокрутки она снова чёрная,
-// иначе текст карточки просвечивал бы сквозь неё и мешал кнопкам.
-function syncProductTopbar() {
-    const screen = $('product-screen');
+// Прозрачная шапка карточки товара и About лежит поверх фото/видео, а после прокрутки снова
+// чёрная — иначе текст просвечивал бы сквозь неё и мешал кнопкам.
+function syncTopbar() {
+    const screen = document.querySelector('.screen.active');
     document.body.classList.toggle('topbar-scrolled', Boolean(screen && screen.scrollTop > 8));
 }
 
@@ -218,6 +219,17 @@ let brandFrame = 0;
 // Залипание на полном внутреннем слайде (втором): цель держится на нём, пока колесо
 // не пройдёт небольшую зону в обе стороны, — нужно чуть сильнее крутнуть, чтобы уехать дальше.
 const BRAND_STICKY = 0.08;
+// Доля оставшегося пути за кадр: чем меньше, тем медленнее выезжает следующий слайд.
+const BRAND_EASE = 0.2;
+// Автопереход после первого видео — заметно медленнее ручного листания.
+const BRAND_AUTO_EASE = 0.04;
+let brandEase = BRAND_EASE;
+
+// Автопереход 1 → 2 после конца первого видео. Взводится при входе в About и снимается,
+// когда зритель листает вперёд; прокрутка вверх на первом слайде ничего не меняет.
+let brandAutoArmed = false;
+// Первое видео уже само уступило второму: не перезапускаем его снизу, пока слайд не вернут колесом.
+let brandFirstAuto = false;
 
 function stickyBrandTarget(raw, last) {
     for (let i = 1; i < last; i++) {
@@ -263,7 +275,7 @@ function syncBrandVideo() {
     slides.forEach((slide, i) => {
         const video = slide.querySelector('.brand-video');
         video.muted = !(show && brandSound && i === audible);
-        if (show && brandVisible(i)) {
+        if (show && brandVisible(i) && !(i === 0 && brandFirstAuto)) {
             if (!video.getAttribute('src')) video.src = video.dataset.src;
             playBrandVideo(video);
         } else if (!video.paused) {
@@ -298,6 +310,33 @@ function playBrandVideo(video, retry = true) {
         playBrandVideo(video, false);
     });
 }
+
+// Первое видео на ПК не зациклено: по его окончании, если зритель ещё ничего не крутил,
+// второй слайд сам поднимается тем же движением, что и от колеса. Дальше — обычное листание.
+brandSlides().forEach((slide, i) => {
+    const video = slide.querySelector('.brand-video');
+    if (!video) return;
+    if (i === 0) video.loop = false; // с loop событие ended не наступает
+    video.addEventListener('ended', () => {
+        const onAbout = historyStack[historyStack.length - 1] === 'brand';
+        const auto = i === 0 && brandAutoArmed && onAbout && WIDE_MAIN.matches
+            && !REDUCED_MOTION.matches && brandTarget === 0;
+        if (auto) {
+            brandAutoArmed = false;
+            brandFirstAuto = true;
+            brandEase = BRAND_AUTO_EASE;
+            // Первое видео уже закончилось — не ждём конца выезда второго:
+            // звук переходит ему сразу, как только оно начнёт играть.
+            brandAudible = 1;
+            brandRaw = 1;
+            brandTarget = 1;
+            if (!brandFrame) brandFrame = requestAnimationFrame(brandTick);
+            return;
+        }
+        video.loop = true;
+        if (onAbout && brandVisible(i)) playBrandVideo(video);
+    });
+});
 
 function setBrandSound(on) {
     brandSound = on;
@@ -392,7 +431,7 @@ function applyBrandPos() {
 function brandTick() {
     const d = brandTarget - brandPos;
     const prev = brandPos;
-    brandPos = Math.abs(d) < 0.0005 ? brandTarget : brandPos + d * 0.2;
+    brandPos = Math.abs(d) < 0.0005 ? brandTarget : brandPos + d * brandEase;
     updateBrandAudible(prev, brandPos);
     applyBrandPos();
     brandFrame = brandPos === brandTarget ? 0 : requestAnimationFrame(brandTick);
@@ -404,6 +443,11 @@ function resetBrandSlide() {
     brandFrame = 0;
     brandPos = brandTarget = brandRaw = 0;
     brandAudible = 0;
+    brandAutoArmed = true;
+    brandFirstAuto = false;
+    brandEase = BRAND_EASE;
+    const first = brandSlides()[0]?.querySelector('.brand-video');
+    if (first) first.loop = false; // чтобы поймать конец первого видео
     applyBrandPos();
 }
 
@@ -434,6 +478,7 @@ function canScrollInside(el, dy) {
 // Прокрутка на высоту экрана = один слайд целиком, как обычный скролл страницы.
 $('brand-screen')?.addEventListener('wheel', (e) => {
     if (!WIDE_MAIN.matches || historyStack[historyStack.length - 1] !== 'brand') return;
+    if (e.deltaY > 0) brandAutoArmed = false; // листание вперёд — автопереход больше не нужен
     if (canScrollInside(e.target, e.deltaY)) return;
     const media = document.querySelector('.brand-media');
     const height = media?.clientHeight || window.innerHeight;
@@ -441,13 +486,23 @@ $('brand-screen')?.addEventListener('wheel', (e) => {
     const last = brandSlides().length - 1;
     brandRaw = clamp(brandRaw + px / height, 0, last);
     brandTarget = stickyBrandTarget(brandRaw, last);
+    brandEase = BRAND_EASE;
+    if (brandTarget < 1 && brandFirstAuto) {
+        // вернулись к первому видео после автоперехода — снова зацикливаем
+        brandFirstAuto = false;
+        const first = brandSlides()[0]?.querySelector('.brand-video');
+        if (first) {
+            first.loop = true;
+            first.currentTime = 0;
+        }
+    }
     if (!brandFrame) brandFrame = requestAnimationFrame(brandTick);
 }, { passive: true });
 
 
 // --- видео в About на телефоне ---
 
-// Узкий экран: видео на всю ширину, одно за другим по кругу; листаются и свайпом.
+// Узкий экран: видео на всю ширину, одно за другим по кругу; листаются свайпом и стрелками.
 // Кружочки снизу показываются на 2 с при открытии About и при каждой смене видео.
 let reelIdx = 0;
 let reelDotsTimer = 0;
@@ -510,6 +565,13 @@ function goReel(idx) {
     if (video.getAttribute('src')) video.currentTime = 0; // каждое видео — с начала
     syncReel();
     showReelDots();
+}
+
+// Стрелки ‹ › на видео в About — как в карточке товара, по кругу.
+function moveReel(dir, event) {
+    event?.stopPropagation();
+    event?.preventDefault();
+    goReel(reelIdx + dir);
 }
 
 // При входе в About — первое видео с начала, без анимации.
@@ -603,6 +665,7 @@ async function loadCatalog() {
         if (!response.ok) throw new Error(response.status);
         const data = await response.json();
         products = data.products.sort((a, b) => STATUS[a.status].order - STATUS[b.status].order);
+        catalogRendered = false;
         renderScreenInternal(currentScreen());
     } catch {
         grid.innerHTML = `<div class="loading-msg">Не удалось загрузить каталог.
@@ -617,7 +680,8 @@ function priceHTML(p, prefix) {
 
 function renderCatalog() {
     const grid = $('products-grid');
-    if (!products.length) return;
+    if (!products.length || catalogRendered) return;
+    catalogRendered = true;
     grid.innerHTML = '';
     products.forEach((p) => {
         const card = document.createElement('div');
@@ -655,8 +719,7 @@ function armCollectionHover() {
     document.addEventListener('pointermove', onMove);
 }
 
-// Блок коллекции: слева фото, справа название/описание/дата (через раз — наоборот),
-// как на телефоне: у первого товара фото слева.
+// Блок коллекции: слева фото, справа название/описание/дата (через раз — наоборот).
 // При наведении фото сменяется студийным фото товара, клик по фото открывает карточку.
 function renderCollections() {
     $('collections').innerHTML = COLLECTIONS.map((c, i) => {
@@ -675,83 +738,53 @@ function renderCollections() {
                 </button>
             </section>`;
     }).join('');
-    renderCurtains();
+    renderMobileCollections();
 }
 
-// Узкий экран: фото и описание коллекции на одном месте, между ними — шторка (вертикальная линия).
-// Её тянут пальцем в любую сторону: до упора — только фото или только текст. Фото — на 75% ширины,
-// в шахматном порядке: слева, потом справа. Тап по фото открывает товар; «Tap to view» — подсказка об этом.
-function renderCurtains() {
-    $('curtains').innerHTML = COLLECTIONS.map((c, i) => {
+// Узкий экран: фото коллекции на всю ширину. Перечёркнутый глаз в углу прячет фото и показывает
+// описание (тот же текст, что на ПК), повторное нажатие возвращает фото. Тап по фото в любом месте,
+// кроме глаза, открывает товар; «open» по центру — только подсказка об этом.
+function renderMobileCollections() {
+    $('mobile-collections').innerHTML = COLLECTIONS.map((c) => {
         const p = products.find((x) => x.id === c.id);
         if (!p) return '';
-        const reverse = i % 2 === 1;
-        const text = c.curtainText ?? c.text;
         return `
-            <section class="curtain-group">
-                ${c.name ? `<h2 class="curtain-name">${esc(c.name)}</h2>` : ''}
-                <div class="curtain${reverse ? ' reverse' : ''}" data-id="${p.id}" style="--pos: ${reverse ? 25 : 75}%">
-                    <img class="curtain-photo" src="${esc(c.photo)}" alt="${esc(p.title)}" style="object-position: ${esc(c.focus || '50% 50%')}">
-                    <div class="curtain-text" aria-hidden="true">${text ? `<p>${esc(text)}</p>` : ''}</div>
-                    ${c.date ? `<div class="curtain-date"><span>${esc(c.date)}</span></div>` : ''}
-                    <div class="curtain-line" aria-hidden="true"><span class="curtain-grip"></span></div>
+            <section class="mcollection">
+                ${c.name ? `<h2 class="mcollection-name">${esc(c.name)}</h2>` : ''}
+                <div class="mcollection-body">
+                    <img class="mcollection-photo" src="${esc(c.photo)}" alt="${esc(p.title)}" style="object-position: ${esc(c.focus || '50% 50%')}">
+                    <div class="mcollection-text">
+                        ${c.text ? `<p>${esc(c.text)}</p>` : ''}
+                        ${c.date ? `<div class="mcollection-date">${esc(c.date)}</div>` : ''}
+                    </div>
+                    <span class="mcollection-open" aria-hidden="true">open</span>
+                    <button type="button" class="mcollection-open-btn" onclick="openProductPage(${p.id})" aria-label="${esc(p.title)}"></button>
+                    <button type="button" class="mcollection-eye" onclick="toggleMobilePhoto(this)" aria-pressed="false" aria-label="Скрыть фото">
+                        <svg class="eye-off" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M14.83 9.17999C14.2706 8.61995 13.5576 8.23846 12.7813 8.08386C12.0049 7.92926 11.2002 8.00851 10.4689 8.31152C9.73758 8.61453 9.11264 9.12769 8.67316 9.78607C8.23367 10.4444 7.99938 11.2184 8 12.01C7.99916 13.0663 8.41619 14.08 9.16004 14.83"/>
+                            <path d="M12 16.01C13.0609 16.01 14.0783 15.5886 14.8284 14.8384C15.5786 14.0883 16 13.0709 16 12.01"/>
+                            <path d="M17.61 6.39004L6.38 17.62C4.6208 15.9966 3.14099 14.0944 2 11.99C6.71 3.76002 12.44 1.89004 17.61 6.39004Z"/>
+                            <path d="M20.9994 3L17.6094 6.39"/>
+                            <path d="M6.38 17.62L3 21"/>
+                            <path d="M19.5695 8.42999C20.4801 9.55186 21.2931 10.7496 21.9995 12.01C17.9995 19.01 13.2695 21.4 8.76953 19.23"/>
+                        </svg>
+                        <svg class="eye-on" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path d="M12 16.01C14.2091 16.01 16 14.2191 16 12.01C16 9.80087 14.2091 8.01001 12 8.01001C9.79086 8.01001 8 9.80087 8 12.01C8 14.2191 9.79086 16.01 12 16.01Z"/>
+                            <path d="M2 11.98C8.09 1.31996 15.91 1.32996 22 11.98"/>
+                            <path d="M22 12.01C15.91 22.67 8.09 22.66 2 12.01"/>
+                        </svg>
+                    </button>
                 </div>
-                ${i === 0 ? '<div class="curtain-hint" aria-hidden="true">Tap<br>to<br>view</div>' : ''}
             </section>`;
     }).join('');
 }
 
-// Шторка: горизонтальное движение пальца двигает линию (от того места, где она стояла),
-// вертикальное — прокрутка страницы (touch-action: pan-y в CSS). Тап без движения по фото — карточка товара.
-// По какую сторону линии точка x — фото (у обычного блока фото слева, у зеркального справа).
-function curtainOnPhoto(el, clientX) {
-    const rect = el.getBoundingClientRect();
-    const x = (clientX - rect.left) / rect.width;
-    const pos = parseFloat(el.style.getPropertyValue('--pos')) / 100;
-    return el.classList.contains('reverse') ? x > pos : x < pos;
-}
-
-function bindCurtains() {
-    const box = $('curtains');
-    let drag = null;
-    box.addEventListener('pointerdown', (e) => {
-        const el = e.target.closest('.curtain');
-        if (!el || (e.pointerType === 'mouse' && e.button !== 0)) return;
-        const pos = parseFloat(el.style.getPropertyValue('--pos')) / 100;
-        drag = { el, id: e.pointerId, x: e.clientX, y: e.clientY, pos, moved: false };
-    });
-    // мышь над фото — курсор «палец»: фото открывает товар (над текстом и линией — обычный)
-    box.addEventListener('pointermove', (e) => {
-        if (e.pointerType !== 'mouse') return;
-        const el = e.target.closest('.curtain');
-        if (el) el.classList.toggle('over-photo', curtainOnPhoto(el, e.clientX));
-    });
-    box.addEventListener('pointerout', (e) => {
-        const el = e.target.closest('.curtain');
-        if (el && !el.contains(e.relatedTarget)) el.classList.remove('over-photo');
-    });
-    box.addEventListener('pointermove', (e) => {
-        if (!drag || e.pointerId !== drag.id) return;
-        const dx = e.clientX - drag.x;
-        if (!drag.moved) {
-            if (Math.abs(dx) < 6 || Math.abs(dx) < Math.abs(e.clientY - drag.y)) return;
-            drag.moved = true;
-            drag.el.classList.add('dragging');
-            box.setPointerCapture?.(e.pointerId);
-        }
-        const pos = clamp(drag.pos + dx / drag.el.clientWidth, 0, 1);
-        drag.el.style.setProperty('--pos', `${(pos * 100).toFixed(2)}%`);
-    });
-    const end = (e, tap) => {
-        if (!drag || e.pointerId !== drag.id) return;
-        const { el, moved } = drag;
-        drag = null;
-        el.classList.remove('dragging');
-        if (moved || !tap) return;
-        if (curtainOnPhoto(el, e.clientX)) openProductPage(Number(el.dataset.id));
-    };
-    box.addEventListener('pointerup', (e) => end(e, true));
-    box.addEventListener('pointercancel', (e) => end(e, false));
+// Глаз: прячет фото и показывает описание; повторное нажатие возвращает фото.
+function toggleMobilePhoto(btn) {
+    const hidden = btn.closest('.mcollection-body').classList.toggle('photo-hidden');
+    btn.setAttribute('aria-pressed', String(hidden));
+    btn.setAttribute('aria-label', hidden ? 'Показать фото' : 'Скрыть фото');
+    haptic('light');
 }
 
 // size — когда товар открывают из корзины: сразу выбран размер, который лежит в корзине.
@@ -788,6 +821,7 @@ function fillProduct(id, size = null) {
         // первое фото нужно сразу, остальные — по мере листания
         if (idx === 0) img.fetchPriority = 'high';
         else img.loading = 'lazy';
+        markPortrait(img);
         img.onclick = () => openLightbox(idx);
         return img;
     });
@@ -859,6 +893,14 @@ function fillLoopTrack(track, images, makeImg) {
     const n = images.length;
     const order = n > 1 ? [n - 1, ...images.keys(), 0] : [0];
     order.forEach((i) => track.appendChild(makeImg(images[i], i)));
+}
+
+// Вертикальное фото встаёт в общую рамку с полями 20px сверху и снизу (см. CSS),
+// горизонтальное — во всю рамку. Пропорции известны только после загрузки.
+function markPortrait(img) {
+    const mark = () => img.classList.toggle('is-portrait', img.naturalHeight > img.naturalWidth);
+    if (img.complete) mark();
+    else img.addEventListener('load', mark, { once: true });
 }
 
 function slideTo(track, pos, animate = true) {
@@ -2600,7 +2642,7 @@ function formatPhone(value) {
 
 function init() {
     // В мини-аппе свайпы вверх/вниз не сворачивают и не закрывают приложение: в каталоге и карточке
-    // почти весь экран занимают шторки, карусели и видео, и жест легко задеть при листании.
+    // почти весь экран занимают фото, карусели и видео, и жест легко задеть при листании.
     // Свернуть/закрыть по-прежнему можно кнопкой в шапке Telegram — она работает всегда.
     if (IN_TG) tg?.disableVerticalSwipes?.();
     // В мини-аппе есть системная кнопка «назад», поэтому части шапки там можно прятать.
@@ -2619,10 +2661,10 @@ function init() {
     renderDelivery();
 
     bindFaq();
-    bindCurtains();
     bindSwipe($('main-carousel'));
     bindLightboxGestures($('lightbox-carousel'));
-    $('product-screen')?.addEventListener('scroll', syncProductTopbar, { passive: true });
+    $('product-screen')?.addEventListener('scroll', syncTopbar, { passive: true });
+    $('brand-screen')?.addEventListener('scroll', syncTopbar, { passive: true });
     // клик по тёмному полю вокруг фото закрывает просмотр (клики по самому фото — в жестах)
     $('lightbox-modal').addEventListener('click', (e) => {
         if (e.target === e.currentTarget || e.target.id === 'lightbox-counter') closeLightbox();

@@ -42,6 +42,7 @@ class FakeBot:
     def __init__(self, unreachable=()):
         self.sent: list[tuple[int, str]] = []
         self.markups: list[tuple[int, object]] = []
+        self.deleted: list[tuple[int, int]] = []
         self.unreachable = set(unreachable)
 
     def _check(self, chat_id):
@@ -52,6 +53,10 @@ class FakeBot:
         self._check(chat_id)
         self.sent.append((chat_id, text))
         self.markups.append((chat_id, kwargs.get("reply_markup")))
+
+    async def delete_message(self, chat_id, message_id):
+        self._check(chat_id)
+        self.deleted.append((chat_id, message_id))
 
     async def send_chat_action(self, chat_id, action, **kwargs):
         self._check(chat_id)

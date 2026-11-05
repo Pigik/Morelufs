@@ -4,9 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MORELUFS</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png">
-    <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+    <link rel="icon" href="/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="96x96" href="/assets/img/favicon-96.png">
+    <link rel="icon" type="image/png" sizes="144x144" href="/assets/img/favicon-144.png">
+    <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
     <meta name="theme-color" content="#000000">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"WebSite","name":"MORELUFS","alternateName":"Morelufs","url":"https://morelufs.ru/"}
+    </script>
     <link rel="preload" href="assets/fonts/source-code-pro-400.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="assets/img/m.webp" as="image">
     <link rel="stylesheet" href="css/style.css">
@@ -58,8 +63,8 @@
         <div id="products-grid" class="products-grid"></div>
         <!-- широкий экран: вместо сетки — коллекции в шахматном порядке (app.js, COLLECTIONS) -->
         <div id="collections" class="collections"></div>
-        <!-- узкий экран: те же коллекции, фото и описание разделены шторкой, её тянут пальцем (app.js, renderCurtains) -->
-        <div id="curtains" class="curtains"></div>
+        <!-- узкий экран: те же коллекции; фото открывает товар, глаз в углу прячет фото и показывает описание (app.js, renderMobileCollections) -->
+        <div id="mobile-collections" class="mobile-collections"></div>
 
         <!-- FAQ: аккордеон, одновременно открыт один ответ (app.js, bindFaq); подвал внизу каталога -->
         <section class="faq" aria-labelledby="faq-title">
@@ -119,9 +124,10 @@
         <footer class="catalog-footer">
             <!-- документы — отдельные страницы из web/legal/*.md (app/legal.py); в мини-аппе открываются в браузере (app.js) -->
             <a class="catalog-footer-link" href="requisites" data-legal>Реквизиты</a>
+            <!-- в узкой версии — второй в первом ряду; на широком экране CSS ставит его в конец, как раньше -->
+            <a class="catalog-footer-link catalog-footer-link--creator" href="https://t.me/pigik_fun" target="_blank" rel="noopener">Создатель сайта</a>
             <a class="catalog-footer-link" href="privacy" data-legal>Политика конфиденциальности</a>
             <a class="catalog-footer-link" href="offer" data-legal>Договор оферты</a>
-            <a class="catalog-footer-link" href="https://t.me/pigik_fun" target="_blank" rel="noopener">Создатель сайта</a>
         </footer>
     </div>
 
@@ -136,15 +142,17 @@
                         <path class="brand-sound-slash" d="M3.5 3.5l17 17"/>
                     </svg>
                 </button>
-                <!-- узкий экран: видео на всю ширину, листаются свайпом и сами по окончании (app.js, раздел «видео на телефоне»).
+                <!-- узкий экран: видео на всю ширину, листаются свайпом, стрелками и сами по окончании (app.js, раздел «видео на телефоне»).
                      Третье пока повторяет второе. src подставляет app.js, когда открыт About -->
-                <div class="brand-reel" aria-hidden="true">
-                    <div class="brand-reel-track">
+                <div class="brand-reel">
+                    <div class="brand-reel-track" aria-hidden="true">
                         <video class="brand-reel-video" muted playsinline preload="none" poster="assets/video/main-poster.webp" data-src="assets/video/main.mp4"></video>
                         <video class="brand-reel-video" muted playsinline preload="none" poster="assets/video/about-2-poster.webp" data-src="assets/video/about-2.mp4"></video>
                         <video class="brand-reel-video" muted playsinline preload="none" poster="assets/video/about-3-poster.webp" data-src="assets/video/about-3.mp4"></video>
                     </div>
-                    <div class="brand-reel-dots"><span></span><span></span><span></span></div>
+                    <button type="button" class="carousel-btn prev" onclick="moveReel(-1, event)" aria-label="Предыдущее видео">&#8592;</button>
+                    <button type="button" class="carousel-btn next" onclick="moveReel(1, event)" aria-label="Следующее видео">&#8594;</button>
+                    <div class="brand-reel-dots" aria-hidden="true"><span></span><span></span><span></span></div>
                 </div>
                 <!-- на широком экране вместо фото; колесо мыши плавно листает слайды (видео + текст справа).
                      src подставляет app.js, чтобы телефон не качал видео; пока грузится — постер фоном слайда -->
@@ -166,16 +174,16 @@
                     <!-- тексты слайдов; на узком экране показывается текст видео, которое сейчас на экране (app.js) -->
                     <div class="brand-text-slides">
                         <div class="brand-text-slide active">
-                            <p>Когда глаза хотят видеть больше, когда ноги хотят идти дальше, когда сердце не может стучаться без одержимости своим делом, мы не молчим - мы звучим.</p>
-                            <p>Morelufs - это личность, отражающая историю двух душ, одержимых,  поглощенных, но не усопших в своей мечте. Пропитанные самобытностью своего маленького северного города, они рискнули и пересекли видимый горизонт, для того, чтобы их внутренний звук обрёл эхо.</p>
+                            <p>Когда глаза хотят видеть больше, когда ноги хотят идти дальше, когда сердце не может стучаться без одержимости своим делом, мы не молчим — мы звучим.</p>
+                            <p>Morelufs — это личность, отражающая историю двух душ, одержимых, поглощенных, но не усопших в своей мечте. Пропитанные самобытностью своего маленького северного города, они рискнули и пересекли видимый горизонт для того, чтобы их внутренний звук обрёл эхо</p>
                         </div>
                         <div class="brand-text-slide">
-                            <p>Я искренне проживаю каждый миг для того, чтобы в результате оставить после себя след. Вся красота в возможности жить и творить и это прекрасно. Ты не один, не обрамляй себя лживыми иллюзиями. Позволь себе быть свободным.</p>
+                            <p>Творец порождает творца, и это работает не только в рамках одной формы реализации.</p>
+                            <p>Моё имя — это культура, в создании которой косвенно принимали участие музыканты, художники, предприниматели и много разных других людей из моего окружения, которые могут даже об этом и не догадываться.</p>
+                            <p>Я хочу сказать, что моя миссия<br>— стать частью твоей личной истории</p>
                         </div>
                         <div class="brand-text-slide">
-                            <p>Творец порождает творца, и это работает не только в рамках одной формы реализации. </p>
-                            <p>Мое имя - это культура, в создании которой, косвенно принимали участие музыканты, художники, предприниматели и много разных других людей из моего окружения, которые могут даже об этом и не догадываться.</p>
-                            <p>Я хочу сказать, что моя миссия: <br>- стать частью твоей личной истории.</p>
+                            <p>Я искренне проживаю каждый миг для того, чтобы в результате оставить после себя след. Вся красота — в возможности жить и творить, и это прекрасно. Ты не один, не обрамляй себя лживыми иллюзиями. Позволь себе быть свободным</p>
                         </div>
                     </div>
                 </div>

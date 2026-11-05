@@ -162,11 +162,14 @@ def status_changed(o: Order) -> str:
     return f"🔔 <b>Заказ #{o.id} обновлён</b>\n\n{status_line(o)}"
 
 
-def start(webapp_url: str) -> str:
+def start() -> str:
+    return "Привет! Вот наше приложение:"
+
+
+def start_legal(webapp_url: str) -> str:
     base = webapp_url.rstrip("/")
-    return ("Привет! Вот наше приложение:\n\n"
-            f"Оформляя заказ, вы принимаете <a href=\"{base}/offer\">публичную оферту</a>. "
-            f"Как мы обращаемся с данными — в <a href=\"{base}/privacy\">политике конфиденциальности</a>.")
+    return (f"Продолжая, вы принимаете <a href=\"{base}/offer\">публичную оферту</a> "
+            f"и <a href=\"{base}/privacy\">политику конфиденциальности</a>.")
 
 
 def new_user(user_id: int, full: str, username: str | None) -> str:
