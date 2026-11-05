@@ -588,7 +588,7 @@ a.catalog-footer-link { text-decoration: none; }
     }
 
     .catalog-footer-link { font-size: max(12px, 0.85vw); }
-    .catalog-footer-link--creator { order: 1; } /* на ПК «Создатель сайта» остаётся последним */
+    .catalog-footer-link--creator { order: 1; } /* на ПК «Разработчик сайта» остаётся последним */
 }
 
 /* --- коллекции (широкий экран; на телефоне — .mcollection ниже) --- */
@@ -666,7 +666,7 @@ a.catalog-footer-link { text-decoration: none; }
 }
 
 /* «OPEN» — только подсказка, что фото открывает товар; нажатие не перехватывает.
-   Оформление как у кнопок Cloth/About/Cart на стартовом экране. */
+   Оформление как у кнопок Cloth/About/Cart, размер — как у описания коллекции. */
 .mcollection-open {
     position: absolute;
     inset: 0;
@@ -674,7 +674,7 @@ a.catalog-footer-link { text-decoration: none; }
     align-items: center;
     justify-content: center;
     font-family: inherit;
-    font-size: 15px;
+    font-size: 11px;
     font-weight: 600;
     line-height: 20px;
     letter-spacing: 0.06em;

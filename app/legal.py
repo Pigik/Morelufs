@@ -175,12 +175,20 @@ a {{ color: var(--text); text-underline-offset: 3px; }}
 table {{ border-collapse: collapse; min-width: 560px; font-size: 13px; }}
 th, td {{ border: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }}
 th {{ color: var(--text); font-weight: 600; }}
-nav {{ display: flex; flex-wrap: wrap; gap: 12px 24px; max-width: 760px; margin: 0 auto;
-  padding: 24px 16px calc(24px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }}
+nav {{ display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 24px; max-width: 760px; margin: 0 auto;
+  padding: 24px 16px 16px; border-top: 1px solid var(--line); }}
 nav a {{ color: var(--hint); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
   text-decoration: none; }}
 nav a[aria-current] {{ color: var(--text); }}
-@media (hover: hover) {{ nav a:hover {{ color: var(--text); }} .logo:hover, .topbar-close:hover {{ opacity: .6; }} }}
+/* кредит разработчика — под документами, отдельной строкой, не в навигации по документам */
+.credit {{ max-width: 760px; margin: 0 auto; padding: 0 16px calc(24px + env(safe-area-inset-bottom));
+  text-align: center; }}
+.credit a {{ color: var(--hint); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  text-decoration: none; }}
+@media (hover: hover) {{
+  nav a:hover, .credit a:hover {{ color: var(--text); }}
+  .logo:hover, .topbar-close:hover {{ opacity: .6; }}
+}}
 @media (min-width: 900px) {{
   .topbar {{ padding: 36px 40px 16px; }}
   .logo, .topbar-close {{ height: 40px; }}
@@ -200,6 +208,7 @@ nav a[aria-current] {{ color: var(--text); }}
 {body}
 </main>
 <nav aria-label="Документы">{nav}</nav>
+<footer class="credit"><a href="https://t.me/pigik_fun" target="_blank" rel="noopener">Разработчик сайта</a></footer>
 <script>
 // Крестик — «назад»: сайт сам вернётся на тот экран и в то место, откуда открыли документ (app.js, RETURN_KEY).
 // Открыли не с сайта (поиск, внешний браузер из мини-аппа) — некуда «назад», крестик ведёт на главную.

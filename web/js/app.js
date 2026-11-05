@@ -1,6 +1,9 @@
 'use strict';
 // Telegram Mini App магазина. Каталог и цены приходят с бэкенда (GET api/catalog).
 
+// подпись разработчика: видна только в консоли DevTools
+console.log('%cMORELUFS', 'font: 600 14px "Source Code Pro", monospace', '\nсайт и бот: tg: @pigik_fun');
+
 const tg = window.Telegram?.WebApp;
 if (tg) {
     tg.expand();
@@ -20,7 +23,7 @@ const STATUS = {
 };
 // Коллекции каталога: один блок — один товар из catalog.json (id); на ПК блоки в шахматном порядке.
 const ANGELS_ADVICE = {
-    name: 'Angel’s Advice collection',
+    name: 'Angel’s Advice chapter',
     text: 'Мое стремление, действие и творчество - подобно совету ангела, который наставляет меня на верный путь. Крик в неизвестность, с целью обрести эхо в лице тех, кто тоже хочет говорить',
 };
 const COLLECTIONS = [
@@ -28,7 +31,7 @@ const COLLECTIONS = [
         name: 'Hoodie Without designers',
         text: 'Никто не сделает твою работу лучше, чем ты сам. Without designers — это протест лично против тебя. Думаешь, стоит передавать какому-то «профессионалу» свои инструменты? Пренебрежение своим видением из-за страха быть не понятым или неуверенности в себе влечет еще большее разочарование. Do it yourself',
         date: '06.11.26',
-        photo: 'assets/img/collection-hoodie.webp',
+        photo: 'assets/img/collection-hoodie.webp?v=2', // v=2 — сброс кеша после уменьшения фото
         focus: '50% 50%',
         id: 4,
     },
@@ -78,6 +81,7 @@ const store = {
 
 let products = [];
 let catalogRendered = false; // DOM каталога собираем один раз: новые <img> заново декодируются и мигают чёрным
+const collectionPreloads = []; // ссылки на заранее декодированные фото: без них браузер может выбросить декод
 let cart = store.get(CART_KEY, []);
 let currentProduct = null;
 let selectedSize = null;
@@ -656,6 +660,18 @@ function closeCustomAlert() {
 }
 
 // --- каталог и товар ---
+
+// Заранее тянем и декодируем фото коллекций, пока открыт другой экран: иначе при входе
+// в каталог они полсекунды чёрные, пока браузер декодирует картинку.
+function preloadCollectionPhotos() {
+    COLLECTIONS.forEach((c) => {
+        if (!c.photo) return;
+        const img = new Image();
+        img.src = c.photo;
+        if (img.decode) img.decode().catch(() => {});
+        collectionPreloads.push(img);
+    });
+}
 
 async function loadCatalog() {
     const grid = $('products-grid');
@@ -2671,6 +2687,7 @@ function init() {
     });
 
     updateCartBadge();
+    preloadCollectionPhotos();
     accountReady = loadAccount();
     catalogReady = loadCatalog();
     checkoutReady = loadCheckoutConfig();

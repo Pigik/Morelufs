@@ -2,8 +2,8 @@
   "products": [
     {
       "id": 1,
-      "title": "\"Angel’s Advice Collection\" Zip-Hoodie Black",
-      "price": 5990,
+      "title": "\"Angel’s Advice Chapter\" Zip-Hoodie Black",
+      "price": 6590,
       "weight": 900,
       "status": "sold_out",
       "sizes": ["S", "M", "L"],
@@ -18,8 +18,8 @@
     },
     {
       "id": 2,
-      "title": "\"Angel’s Advice Collection\" Zip-Hoodie Grey",
-      "price": 5990,
+      "title": "\"Angel’s Advice Chapter\" Zip-Hoodie Grey",
+      "price": 6590,
       "weight": 900,
       "status": "sold_out",
       "sizes": ["S", "M", "L"],
