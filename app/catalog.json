@@ -2,7 +2,7 @@
   "products": [
     {
       "id": 1,
-      "title": "\"Angel’s Advice Chapter\" Zip-Hoodie Black",
+      "title": "Angel’s Advice Zip-Hoodie Black",
       "price": 6590,
       "weight": 900,
       "status": "sold_out",
@@ -18,7 +18,7 @@
     },
     {
       "id": 2,
-      "title": "\"Angel’s Advice Chapter\" Zip-Hoodie Grey",
+      "title": "Angel’s Advice Zip-Hoodie Grey",
       "price": 6590,
       "weight": 900,
       "status": "sold_out",
@@ -34,9 +34,9 @@
     },
     {
       "id": 4,
-      "title": "Hoodie Without Designers",
+      "title": "Without Designers Hoodie",
       "price": 5990,
-      "weight": 350,
+      "weight": 650,
       "old_price": 6890,
       "status": "preorder",
       "sizes": ["0", "1"],

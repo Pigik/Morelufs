@@ -12,9 +12,9 @@ from aiogram.types import CallbackQuery, Message, TelegramObject
 
 from app import texts
 from app.bot import keyboards as kb
-from app.bot.keyboards import PAGE_SIZE, OrderAct, OrdersPage
+from app.bot.keyboards import PAGE_SIZE, MailingConfirm, OrderAct, OrdersPage
 from app.catalog import phone_e164
-from app.config import BOX_CM, DEFAULT_ITEM_WEIGHT_G, PACKAGING_WEIGHT_G, STATUS_PRESETS, Settings
+from app.config import DEFAULT_ITEM_WEIGHT_G, PACKAGE_CM, PACKAGING_WEIGHT_G, STATUS_PRESETS, Settings
 from app.db import Database, Order
 from app.delivery import DeliveryError, Item, Parcel, PostAddress, Recipient, Shipment
 from app.notify import send_to_customer
@@ -94,7 +94,7 @@ def shipment_for(o: Order) -> Shipment:
     items = [Item(i.title, i.size, i.qty, i.price, weights.get(str(i.product_id), DEFAULT_ITEM_WEIGHT_G))
              for i in o.items]
     parcel = Parcel(**info["parcel"]) if info.get("parcel") else Parcel(
-        sum(i.qty * i.weight_g for i in items) + PACKAGING_WEIGHT_G, *BOX_CM)
+        sum(i.qty * i.weight_g for i in items) + PACKAGING_WEIGHT_G, *PACKAGE_CM)
     post = info.get("post_address")
     return Shipment(
         order_number=f"ML-{o.id}",
@@ -302,12 +302,7 @@ async def deliver(bot: Bot, chat_id: int, source: Message | None, text: str | No
 async def broadcast(message: Message, command: CommandObject, bot: Bot, chat_ids: list[int], db: Database | None):
     source = message.reply_to_message
     if not source and not command.args:
-        await message.answer(
-            f"Использование: /{command.command} текст — или ответьте этой командой на сообщение, "
-            "чтобы разослать его копию (с фото, форматированием и т. д.).\n\n"
-            "Только служебные сообщения (о работе магазина, заказах, доставке). Реклама — новинки, скидки, "
-            "розыгрыши — требует отдельного согласия получателей (ст. 18 закона «О рекламе»), его у них нет."
-        )
+        await message.answer(mailing_usage(command.command))
         return
     await message.answer(f"Старт рассылки. Получателей: {len(chat_ids)}")
     sent = blocked = failed = 0
@@ -327,6 +322,30 @@ async def broadcast(message: Message, command: CommandObject, bot: Bot, chat_ids
             log.warning("Рассылка: %s — %s", chat_id, e)
         await asyncio.sleep(0.05)  # ≤ 20 сообщений в секунду
     await message.answer(f"Рассылка завершена.\nДоставлено: {sent}\nЗаблокировали бота: {blocked}\nОшибки: {failed}")
+
+
+def mailing_usage(command: str) -> str:
+    return (
+        f"Использование: /{command} текст — или ответьте этой командой на сообщение, "
+        "чтобы разослать его копию (с фото, форматированием и т. д.).\n\n"
+        "Только служебные сообщения (о работе магазина, заказах, доставке). Реклама — новинки, скидки, "
+        "розыгрыши — требует отдельного согласия получателей (ст. 18 закона «О рекламе»), его у них нет."
+    )
+
+
+# /mailing сначала спрашивает подтверждение: храним команду до нажатия «Да»/«Нет»
+_pending_mailings: dict[int, tuple[Message, CommandObject, list[int]]] = {}
+
+
+async def ask_mailing(message: Message, command: CommandObject, chat_ids: list[int]) -> None:
+    if not message.reply_to_message and not command.args:
+        await message.answer(mailing_usage(command.command))
+        return
+    _pending_mailings[message.from_user.id] = (message, command, chat_ids)
+    await message.answer(
+        f"Начать рассылку? Получателей: {len(chat_ids)}",
+        reply_markup=kb.confirm_mailing(),
+    )
 
 
 # --- удаление персональных данных ---
@@ -351,8 +370,24 @@ async def forget(message: Message, command: CommandObject, db: Database) -> None
 
 
 @router.message(Command("mailing"))
-async def mailing(message: Message, command: CommandObject, bot: Bot, db: Database) -> None:
-    await broadcast(message, command, bot, await db.active_user_ids(), db)
+async def mailing(message: Message, command: CommandObject, db: Database) -> None:
+    await ask_mailing(message, command, await db.active_user_ids())
+
+
+@router.callback_query(MailingConfirm.filter())
+async def mailing_confirm(call: CallbackQuery, callback_data: MailingConfirm, bot: Bot, db: Database) -> None:
+    pending = _pending_mailings.pop(call.from_user.id, None)
+    if pending is None:
+        await call.answer("Рассылка уже запущена или отменена.", show_alert=True)
+        return
+    message, command, chat_ids = pending
+    if callback_data.action != "yes":
+        await call.message.edit_text("Рассылка отменена.")
+        await call.answer()
+        return
+    await call.message.edit_text(f"Рассылка подтверждена. Получателей: {len(chat_ids)}")
+    await call.answer()
+    await broadcast(message, command, bot, chat_ids, db)
 
 
 @router.message(Command("test_mailing"))

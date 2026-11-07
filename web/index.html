@@ -5,6 +5,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>MORELUFS</title>
+    <meta name="description" content="MORELUFS — одежда из Казани: худи и зип-худи с авторским дизайном. Доставка по всей России в пункты СДЭК и отделения Почты России.">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="MORELUFS">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:url" content="https://morelufs.ru/">
+    <meta property="og:title" content="MORELUFS — одежда из Казани">
+    <meta property="og:description" content="MORELUFS — одежда из Казани: худи и зип-худи с авторским дизайном. Доставка по всей России в пункты СДЭК и отделения Почты России.">
+    <meta property="og:image" content="https://morelufs.ru/assets/img/og.jpg">
+    <meta property="og:image:type" content="image/jpeg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Двое в худи MORELUFS на ночной набережной Казани">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="MORELUFS — одежда из Казани">
+    <meta name="twitter:description" content="MORELUFS — одежда из Казани: худи и зип-худи с авторским дизайном. Доставка по всей России в пункты СДЭК и отделения Почты России.">
+    <meta name="twitter:image" content="https://morelufs.ru/assets/img/og.jpg">
     <link rel="icon" href="/favicon.ico" sizes="any">
     <link rel="icon" type="image/png" sizes="96x96" href="/assets/img/favicon-96.png">
     <link rel="icon" type="image/png" sizes="144x144" href="/assets/img/favicon-144.png">
@@ -20,7 +36,9 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="js/app.js" defer></script>
 </head>
-<body>
+<!-- Стартовый экран — главная: атрибут нужен до загрузки app.js, иначе на медленной сети
+     при первой отрисовке мелькает шапка с кнопками разделов, а потом прячется. -->
+<body data-screen="landing">
     <header id="topbar" class="topbar">
         <button type="button" class="logo" onclick="navigate('landing')" aria-label="MORELUFS — на главную"><img src="assets/img/m.webp" alt="" width="326" height="254"></button>
         <!-- в карточке товара и в «Текущих заказах» вместо «M» — закрыть и вернуться туда, откуда открыли;
@@ -177,15 +195,15 @@
                     <div class="brand-text-slides">
                         <div class="brand-text-slide active">
                             <p>Когда глаза хотят видеть больше, когда ноги хотят идти дальше, когда сердце не может стучаться без одержимости своим делом, мы не молчим — мы звучим.</p>
-                            <p>Morelufs — это личность, отражающая историю двух душ, одержимых, поглощенных, но не усопших в своей мечте. Пропитанные самобытностью своего маленького северного города, они рискнули и пересекли видимый горизонт для того, чтобы их внутренний звук обрёл эхо</p>
+                            <p>Morelufs — это личность, отражающая историю двух душ, одержимых, поглощенных, но не усопших в своей мечте. Пропитанные самобытностью своего маленького северного города, они рискнули и пересекли видимый горизонт для того, чтобы их внутренний звук обрёл эхо.</p>
                         </div>
                         <div class="brand-text-slide">
                             <p>Творец порождает творца, и это работает не только в рамках одной формы реализации.</p>
                             <p>Моё имя — это культура, в создании которой косвенно принимали участие музыканты, художники, предприниматели и много разных других людей из моего окружения, которые могут даже об этом и не догадываться.</p>
-                            <p>Я хочу сказать, что моя миссия<br>— стать частью твоей личной истории</p>
+                            <p>Я хочу сказать, что моя миссия<br>— стать частью твоей личной истории.</p>
                         </div>
                         <div class="brand-text-slide">
-                            <p>Я искренне проживаю каждый миг для того, чтобы в результате оставить после себя след. Вся красота — в возможности жить и творить, и это прекрасно. Ты не один, не обрамляй себя лживыми иллюзиями. Позволь себе быть свободным</p>
+                            <p>Я искренне проживаю каждый миг для того, чтобы в результате оставить после себя след. Вся красота — в возможности жить и творить, и это прекрасно. Ты не один, не обрамляй себя лживыми иллюзиями. Позволь себе быть свободным.</p>
                         </div>
                     </div>
                 </div>

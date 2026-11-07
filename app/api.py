@@ -8,6 +8,7 @@ import re
 import secrets
 import time
 from dataclasses import asdict
+from pathlib import Path
 from urllib.parse import urlencode, urlparse
 
 from aiogram import Bot
@@ -36,6 +37,10 @@ from app.payments import Payment, PaymentError, ReceiptLine, YooKassa
 from app.telegram_login import LoginError, TelegramLogin, new_pkce, phone_from_claims
 
 log = logging.getLogger(__name__)
+
+# Python 3.12 (образ в Docker) не знает .webp и .woff2 — aiohttp отдавал бы их как application/octet-stream.
+# Локальный Python 3.13 знает webp, поэтому проблему видно только в проде. Задаём типы сами.
+ASSET_CONTENT_TYPES = {".webp": "image/webp", ".woff2": "font/woff2"}
 
 SETTINGS = web.AppKey("settings", Settings)
 DB = web.AppKey("db", Database)
@@ -622,6 +627,9 @@ async def errors_and_cache(request: web.Request, handler):
         # медиа заменяют под теми же именами (фото товаров, видео) — браузер должен перепроверять по Last-Modified,
         # иначе сутки показывает старый файл
         response.headers.setdefault("Cache-Control", "public, no-cache")
+        content_type = ASSET_CONTENT_TYPES.get(Path(request.path).suffix.lower())
+        if content_type and response.status < 300:
+            response.content_type = content_type
     elif request.path.startswith(("/auth/", "/pay/", "/api/me", "/api/payment/", "/api/order/")):
         response.headers.setdefault("Cache-Control", "no-store")  # зависят от cookie/оплаты
     else:  # html, css, js, api — всегда свежие (браузер перепроверяет по Last-Modified)
@@ -663,6 +671,12 @@ def create_app(settings: Settings, db: Database, catalog: Catalog, bot: Bot, log
     async def robots(_: web.Request) -> web.FileResponse:
         return web.FileResponse(settings.web_dir / "robots.txt")
 
+    async def yandex_verification(_: web.Request) -> web.FileResponse:
+        return web.FileResponse(settings.web_dir / "yandex_48eac4c4455cc145.html")
+
+    async def sitemap(_: web.Request) -> web.FileResponse:
+        return web.FileResponse(settings.web_dir / "sitemap.xml")
+
     async def health(_: web.Request) -> web.Response:
         return web.Response(text="ok")
 
@@ -676,6 +690,8 @@ def create_app(settings: Settings, db: Database, catalog: Catalog, bot: Bot, log
     app.router.add_get("/healthz", health)
     app.router.add_get("/favicon.ico", favicon)
     app.router.add_get("/robots.txt", robots)
+    app.router.add_get("/yandex_48eac4c4455cc145.html", yandex_verification)
+    app.router.add_get("/sitemap.xml", sitemap)
     app.router.add_get("/api/catalog", get_catalog)
     app.router.add_get("/api/orders", get_orders)
     app.router.add_post("/api/order", post_order)

@@ -48,11 +48,25 @@ def test_catalog_and_static(settings):
             page = await client.get("/")
             assert page.status == 200 and "text/html" in page.content_type
             assert page.headers["Cache-Control"] == "no-cache"
+            html = await page.text()
+            assert '<meta name="description"' in html
+            assert 'property="og:image"' in html and "assets/img/og.jpg" in html
+            og = await client.get("/assets/img/og.jpg")
+            assert og.status == 200 and og.content_type == "image/jpeg"
             assert (await client.get("/js/app.js")).status == 200
             assert (await client.get("/favicon.ico")).status == 200
             assert (await client.get("/assets/img/favicon-96.png")).status == 200
+            # Python 3.12 в контейнере не знает webp/woff2, поэтому типы задаются в api.py
+            assert (await client.get("/assets/img/m.webp")).content_type == "image/webp"
+            assert (await client.get("/assets/fonts/source-code-pro-400.woff2")).content_type == "font/woff2"
             robots = await client.get("/robots.txt")
-            assert robots.status == 200 and "Allow: /" in await robots.text()
+            robots_text = await robots.text()
+            assert robots.status == 200 and "Allow: /" in robots_text
+            assert "Sitemap: https://morelufs.ru/sitemap.xml" in robots_text
+            sitemap = await client.get("/sitemap.xml")
+            assert sitemap.status == 200 and "<loc>https://morelufs.ru/</loc>" in await sitemap.text()
+            verify = await client.get("/yandex_48eac4c4455cc145.html")
+            assert verify.status == 200 and "Verification: 48eac4c4455cc145" in await verify.text()
             assert (await client.get("/assets/../app/config.py")).status in (403, 404)
     run(scenario())
 
@@ -348,7 +362,7 @@ def test_cdek_order_details_and_pay_button(settings):
             resp = await post(client, ORDER)
             assert resp.status == 200 and (await resp.json())["order"]["payment_url"] == "https://pay.test/1"
             (city, parcel), = cdek.quotes
-            assert city == 424 and parcel.weight_g == 2 * 350 + 150  # лонгсливы + упаковка
+            assert city == 424 and parcel.weight_g == 2 * 650 + 50  # кофты + пакет
             create = payments.creates[0]
             assert create["amount"] == 12330 and create["order_id"] == 1 and create["phone"] == "+79001234567"
             link = pay_link(settings, 1)
@@ -623,7 +637,7 @@ def test_admin_card_shipment_and_refund(settings):
             shipment = admin.shipment_for(order)
             assert (shipment.order_number, shipment.recipient.phone, shipment.cdek_point) == ("ML-1", "+79001234567",
                                                                                               "KZN1")
-            assert shipment.items[0].weight_g == 350 and shipment.declared_value == 11980
+            assert shipment.items[0].weight_g == 650 and shipment.declared_value == 11980
 
             cdek.track = None  # СДЭК присваивает номер не сразу
             order, note = await admin.create_shipment(bot, db, order, cdek)

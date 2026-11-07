@@ -26,19 +26,15 @@ class OrderAct(CallbackData, prefix="oa"):
     arg: int = 0
 
 
+class MailingConfirm(CallbackData, prefix="mc"):
+    """Ответ на вопрос «Начать рассылку?»: yes — запустить, no — отменить."""
+
+    action: str
+
+
 def webapp(url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="Открыть приложение", web_app=WebAppInfo(url=url))
-    ]])
-
-
-START_CONTINUE = "start_continue"
-
-
-def start_continue() -> InlineKeyboardMarkup:
-    """Первый запуск: сначала документы, приложение — после кнопки «Продолжить»."""
-    return InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Продолжить", callback_data=START_CONTINUE)
     ]])
 
 
@@ -107,3 +103,10 @@ def confirm_refund(o: Order, page: int) -> InlineKeyboardMarkup:
               callback_data=OrderAct(id=o.id, action="refund_ok", page=page))
     kb.button(text="Отмена", callback_data=OrderAct(id=o.id, action="open", page=page))
     return kb.as_markup()
+
+
+def confirm_mailing() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Да", callback_data=MailingConfirm(action="yes").pack()),
+        InlineKeyboardButton(text="Нет", callback_data=MailingConfirm(action="no").pack()),
+    ]])

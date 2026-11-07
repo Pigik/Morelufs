@@ -69,15 +69,12 @@ CREATE INDEX IF NOT EXISTS sessions_user_id ON sessions(user_id);
 # phone — номер, подтверждённый Telegram при входе на сайт;
 # bot_dm — может ли бот написать первым: 1 да, 0 нет (не нажимал Start / заблокировал), NULL — ещё не знаем;
 # last_seen_at — последний визит (UTC, с точностью до суток): от него и от последнего заказа считается срок хранения;
-# start_confirmed — покупатель нажал «Продолжить» на первом запуске бота (старым пользователям — 1);
-# start_message_id — последнее сообщение с документами: удаляем его при повторном /start до согласия;
 # legal_version, consent_at — какие редакции документов покупатель принял галочками и когда (доказательство согласия);
 # total — товары + доставка; delivery_data — JSON: ПВЗ/код города или почтовый адрес, срок, посылка, веса товаров;
 # payment_status — pending | paid | cancelled | refunded | expired (NULL у старых заказов с оплатой по QR/менеджеру);
 # shipment_id — uuid заказа СДЭК или id отправления Почты, трек-номер потом пишется в track
 COLUMNS = {
-    "users": {"phone": "TEXT", "bot_dm": "INTEGER", "last_seen_at": "TEXT",
-              "start_confirmed": "INTEGER NOT NULL DEFAULT 1", "start_message_id": "INTEGER"},
+    "users": {"phone": "TEXT", "bot_dm": "INTEGER", "last_seen_at": "TEXT"},
     "orders": {"legal_version": "TEXT", "consent_at": "TEXT", "delivery_cost": "INTEGER NOT NULL DEFAULT 0",
                "delivery_data": "TEXT", "payment_id": "TEXT", "payment_url": "TEXT", "payment_status": "TEXT",
                "paid_at": "TEXT", "shipment_id": "TEXT"},
@@ -181,8 +178,8 @@ class Database:
     async def upsert_user(self, user_id: int, username: str | None, full_name: str) -> bool:
         """Сохраняет пользователя и снимает флаг блокировки. True, если пользователь новый."""
         cur = await self.conn.execute(
-            "INSERT INTO users (id, username, full_name, last_seen_at, start_confirmed) "
-            "VALUES (?, ?, ?, datetime('now'), 0) "
+            "INSERT INTO users (id, username, full_name, last_seen_at) "
+            "VALUES (?, ?, ?, datetime('now')) "
             "ON CONFLICT(id) DO NOTHING",
             (user_id, username, full_name),
         )
@@ -243,25 +240,6 @@ class Database:
 
     async def set_bot_dm(self, user_id: int, reachable: bool) -> None:
         await self.conn.execute("UPDATE users SET bot_dm = ? WHERE id = ?", (int(reachable), user_id))
-        await self.conn.commit()
-
-    async def start_confirmed(self, user_id: int) -> bool:
-        """True — покупатель уже нажал «Продолжить» на первом запуске бота."""
-        rows = await self.conn.execute_fetchall("SELECT start_confirmed FROM users WHERE id = ?", (user_id,))
-        return bool(rows and rows[0]["start_confirmed"])
-
-    async def start_message_id(self, user_id: int) -> int | None:
-        """Сообщение с документами на первом запуске — его удаляем при повторном /start."""
-        rows = await self.conn.execute_fetchall("SELECT start_message_id FROM users WHERE id = ?", (user_id,))
-        return rows[0]["start_message_id"] if rows else None
-
-    async def set_start_message_id(self, user_id: int, message_id: int) -> None:
-        await self.conn.execute("UPDATE users SET start_message_id = ? WHERE id = ?", (message_id, user_id))
-        await self.conn.commit()
-
-    async def confirm_start(self, user_id: int) -> None:
-        await self.conn.execute(
-            "UPDATE users SET start_confirmed = 1, start_message_id = NULL WHERE id = ?", (user_id,))
         await self.conn.commit()
 
     async def needs_bot_start(self, user_id: int) -> bool:

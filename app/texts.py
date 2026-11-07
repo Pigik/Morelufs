@@ -166,12 +166,6 @@ def start() -> str:
     return "Привет! Вот наше приложение:"
 
 
-def start_legal(webapp_url: str) -> str:
-    base = webapp_url.rstrip("/")
-    return (f"Продолжая, вы принимаете <a href=\"{base}/offer\">публичную оферту</a> "
-            f"и <a href=\"{base}/privacy\">политику конфиденциальности</a>.")
-
-
 def new_user(user_id: int, full: str, username: str | None) -> str:
     nick = f"@{esc(username)}" if username else "без ника"
     return f"Новый пользователь: <a href=\"tg://user?id={user_id}\">{esc(full)}</a>, {nick}, <code>{user_id}</code>"

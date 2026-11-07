@@ -328,7 +328,7 @@ body[data-screen="checkout"] .topbar-close { display: block; }
     height: 100%;
     object-fit: cover;
     object-position: 50% 60%;
-    animation: fade-in 1.2s ease both;
+    animation: fade-in 0.6s ease both;
 }
 
 /* «M» и три надписи — одна группа по центру. На горизонтальном экране она чуть ниже,
@@ -349,14 +349,14 @@ body[data-screen="checkout"] .topbar-close { display: block; }
     display: block;
     width: clamp(110px, 9.6vw, 230px);
     height: auto;
-    animation: fade-in 1.2s 0.2s ease both;
+    animation: fade-in 0.6s 0.05s ease both;
 }
 
 .landing-nav {
     display: flex;
     flex-direction: column;
     align-items: center;
-    animation: fade-in 0.8s 0.8s ease both;
+    animation: fade-in 0.45s 0.1s ease both;
 }
 
 .landing-link {
@@ -2378,7 +2378,7 @@ body[data-screen="brand"].topbar-scrolled .topbar { background: var(--bg); }
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    animation: fade-in 0.8s 0.8s ease both;
+    animation: fade-in 0.45s 0.1s ease both;
     transition: color 0.15s ease;
 }
 

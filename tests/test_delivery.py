@@ -281,6 +281,13 @@ def test_pochta_headers_and_normalize():
         async with pochta_client({("POST", "/1.0/clean/address"): (200, [ok])}) as (_, c):
             assert (await c.normalize("Казань")).room == ""
 
+        # Почта возвращает room уже с «кв.» — не дублируем подпись в адресе и отправлении
+        prefixed = {**GOOD_ADDRESS, "room": "кв. 5"}
+        async with pochta_client({("POST", "/1.0/clean/address"): (200, [prefixed])}) as (_, c):
+            a = await c.normalize("Казань, Баумана 1 к2, кв 5")
+            assert a.room == "5"
+            assert a.full.endswith("кв. 5") and "кв. кв." not in a.full
+
         bad = [{**GOOD_ADDRESS, "quality-code": "UNDEF_01"},
                {**GOOD_ADDRESS, "validation-code": "NOT_VALIDATED_HAS_NO_MAIN_POINTS"},
                {**GOOD_ADDRESS, "index": None}]

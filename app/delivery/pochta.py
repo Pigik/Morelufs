@@ -21,6 +21,8 @@ BAD_ADDRESS = "Почта не распознала адрес. Укажите �
 # POSTAL_BOX — абонентский ящик, UNDEF_05 — не указана квартира: посылку всё равно выдают в отделении.
 GOOD_QUALITY = frozenset({"GOOD", "POSTAL_BOX", "ON_DEMAND", "UNDEF_05"})
 GOOD_VALIDATION = frozenset({"VALIDATED", "OVERRIDDEN", "CONFIRMED_MANUALLY"})
+# Почта иногда отдаёт room уже с подписью («кв. 5»), а в заказе и API отправления нужен только номер
+ROOM_PREFIX = re.compile(r"^(?:кварт(?:ира)?|кв)\.?\s*", re.IGNORECASE)
 RUSSIA = 643  # mail-direct: код страны назначения
 # «Посылка онлайн» — тариф для интернет-магазинов по договору, дешевле обычной «Посылки» (POSTAL_PARCEL);
 # выдаётся в отделении по индексу получателя
@@ -59,7 +61,7 @@ class PochtaClient:
             if row.get(key):
                 house += prefix + _s(row, key)
         addr = PostAddress(index=index, region=_s(row, "region"), place=_s(row, "place"), street=_s(row, "street"),
-                           house=house.strip(), room=_s(row, "room"), area=_s(row, "area"))
+                           house=house.strip(), room=_room(_s(row, "room")), area=_s(row, "area"))
         full = ", ".join(p for p in (addr.index, addr.region, addr.area, addr.place, addr.street, addr.house,
                                      f"кв. {addr.room}" if addr.room else "") if p)
         return PostAddress(addr.index, addr.region, addr.place, addr.street, addr.house, addr.room, addr.area, full)
@@ -203,6 +205,10 @@ def _messages(data: Any) -> str:
 
 def _s(row: dict, key: str) -> str:
     return str(row.get(key) or "").strip()
+
+
+def _room(value: str) -> str:
+    return ROOM_PREFIX.sub("", value).strip()
 
 
 def _int(value: Any) -> int | None:

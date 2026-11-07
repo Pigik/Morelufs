@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic_core import PydanticCustomError
 
-from app.config import BOX_CM, MAX_CART_ITEMS, MAX_ITEM_QTY, PACKAGING_WEIGHT_G
+from app.config import MAX_CART_ITEMS, MAX_ITEM_QTY, PACKAGE_CM, PACKAGING_WEIGHT_G
 from app.delivery import Parcel
 
 ProductStatus = Literal["in_stock", "preorder", "sold_out"]
@@ -134,9 +134,9 @@ def price_cart(catalog: Catalog, cart: list[CartLine]) -> tuple[list[dict], int]
 
 
 def make_parcel(catalog: Catalog, items: list[dict]) -> Parcel:
-    """Посылка из позиций price_cart: вес товаров + упаковка, коробка стандартная."""
+    """Посылка из позиций price_cart: вес товаров + упаковка, пакет стандартный."""
     weight = sum(i["qty"] * catalog.get(i["product_id"]).weight for i in items) + PACKAGING_WEIGHT_G
-    return Parcel(weight, *BOX_CM)
+    return Parcel(weight, *PACKAGE_CM)
 
 
 def phone_e164(phone: str) -> str:
